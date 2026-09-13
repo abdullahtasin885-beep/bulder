@@ -1,10 +1,11 @@
 /*
 |--------------------------------------------------------------------------
-| TELEGRAM MULTI-BOT BUILDER ENGINE (100% PRODUCTION READY - BUG FIXED)
+| TELEGRAM MULTI-BOT BUILDER PLATFORM (100% PRODUCTION READY & RESILIENT)
 | - Builder Token: 8950164597:AAHjXI-LuvxBINicm85BwSe_-KV-k5PuLFo
 | - Builder Username: @AuraBuilderProBot
 | - Builder Super Admin: 8045367594
-| - Isolated Realtime Firebase Storage: /bots/{botId}/...
+| - Dynamic Payment Methods per Child Bot (bKash, Nagad, Rocket, Crypto, etc.)
+| - Strict Emoji-Resilient Button Engine
 |--------------------------------------------------------------------------
 */
 
@@ -35,12 +36,18 @@ const childCaches = new Map();
 
 /*
 |--------------------------------------------------------------------------
-| 2. HELPERS & REST CLIENTS
+| 2. HELPERS & FORMATTERS
 |--------------------------------------------------------------------------
 */
 function escapeHtml(text) {
     if (typeof text !== 'string') text = String(text ?? '');
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function cleanText(text) {
+    if (typeof text !== 'string') return '';
+    // Removes invisible Unicode variation selectors and trims
+    return text.replace(/[\uFE00-\uFE0F\u200B-\u200D\uFEFF]/g, '').trim();
 }
 
 function formatNumber(num) {
@@ -94,7 +101,7 @@ async function telegramApi(token, method, params = {}) {
 
 /*
 |--------------------------------------------------------------------------
-| 3. MAIN BUILDER BOT CONTROLLER
+| 3. BUILDER BOT LOGIC
 |--------------------------------------------------------------------------
 */
 function getBuilderMenu(userId) {
@@ -127,7 +134,7 @@ async function handleBuilderUpdate(update) {
                 `📱 <b>বিকাশ (Personal):</b> <code>${builderMemory.settings.bkash}</code>\n` +
                 `📱 <b>নগদ (Personal):</b> <code>${builderMemory.settings.nagad}</code>\n` +
                 `📱 <b>রকেট (Personal):</b> <code>${builderMemory.settings.rocket}</code>\n\n` +
-                `টাকা পাঠিয়ে আপনার <b>TrxID</b> এবং যে নাম্বার থেকে পাঠিয়েছেন তা লিখে পাঠান:`;
+                `টাকা পাঠিয়ে আপনার <b>TrxID</b> এবং নাম্বারটি লিখে পাঠান:`;
             
             await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
                 chat_id: fromId,
@@ -167,7 +174,8 @@ async function handleBuilderUpdate(update) {
     if (!update.message) return;
     const msg = update.message;
     const fromId = String(msg.from.id);
-    const text = (msg.text || '').trim();
+    const rawText = msg.text || '';
+    const text = cleanText(rawText);
 
     if (text === '❌ Cancel' || text === '/cancel') {
         builderMemory.states.delete(fromId);
@@ -383,13 +391,15 @@ async function handleBuilderUpdate(update) {
         builderMemory.bots.set(botId, newBotRecord);
         builderMemory.states.delete(fromId);
 
+        // Default settings with payment methods
         await firebaseRequest(`bots/${botId}/settings`, 'PUT', {
             coin_name: 'STAR',
             min_withdraw: 2,
             referral_bonus: 1,
             welcome_bonus: 0,
             withdraw_fee_percent: 0,
-            bot_power_status: 'on'
+            bot_power_status: 'on',
+            payment_methods: ['bKash', 'Nagad', 'Rocket']
         });
 
         const successMsg = 
@@ -418,7 +428,7 @@ async function handleBuilderUpdate(update) {
 
 /*
 |--------------------------------------------------------------------------
-| 4. CHILD BOT RUNTIME ENGINE (ISOLATED EXECUTION)
+| 4. CHILD BOT ENGINE (WITH CUSTOM PAYMENT METHODS & RESILIENT BUTTONS)
 |--------------------------------------------------------------------------
 */
 function getChildCache(botId) {
@@ -429,10 +439,8 @@ function getChildCache(botId) {
             userChannels: new Map(),
             forceChannels: {},
             admins: {},
-            blacklist: {},
-            whitelist: {},
+            paymentMethods: ['bKash', 'Nagad', 'Rocket'],
             botActive: true,
-            whitelistOnly: false,
             adminStates: new Map(),
             userStates: new Map()
         });
@@ -469,6 +477,15 @@ async function handleChildUpdate(botRecord, update) {
     const setSetting = (k, v) => {
         cache.settings.set(k, v);
         childDb(botId, `settings/${k}`, 'PUT', v);
+    };
+
+    const getMethods = async () => {
+        const stored = await childDb(botId, 'settings/payment_methods');
+        if (Array.isArray(stored) && stored.length > 0) {
+            cache.paymentMethods = stored;
+            return stored;
+        }
+        return cache.paymentMethods || ['bKash', 'Nagad', 'Rocket'];
     };
 
     const getUser = async (uid) => {
@@ -513,8 +530,7 @@ async function handleChildUpdate(botRecord, update) {
         return {
             keyboard: [
                 [{ text: cache.botActive ? '🟢 Bot: Active (ON)' : '🔴 Bot: OFF' }, { text: '⚙️ Central Settings' }],
-                [{ text: '👥 User & Balance' }, { text: '📢 Users Broadcast' }],
-                [{ text: '📢 Force Channels' }, { text: '⭐ সেট Payouts Done' }],
+                [{ text: '💳 Payment Methods' }, { text: '⭐ সেট Payouts Done' }],
                 [{ text: '🔧 Source Settings' }, { text: '🔙 Back to User Panel' }]
             ],
             resize_keyboard: true
@@ -538,8 +554,8 @@ async function handleChildUpdate(botRecord, update) {
                 await ansCallback(cq.id, '⚠️ আপনি সব চ্যানেলে জয়েন করেননি!', true);
                 return;
             }
-            let u = await getUser(fromId);
             updateUser(fromId, { is_verified: true, verification_status: 'verified' });
+            let u = await getUser(fromId);
 
             if (u?.referred_by && !u.referral_rewarded) {
                 const refUser = await getUser(u.referred_by);
@@ -555,7 +571,25 @@ async function handleChildUpdate(botRecord, update) {
             }
 
             if (mid) await telegramApi(botToken, 'deleteMessage', { chat_id: cid, message_id: mid });
-            await sendMsg(fromId, '✅ Verification Successful!', getUserMenu(fromId));
+            await sendMsg(fromId, '✅ <b>Verification Successful!</b>', getUserMenu(fromId));
+            return;
+        }
+
+        // USER: Select Payment Method for withdrawal
+        if (data.startsWith('w_method_')) {
+            await ansCallback(cq.id);
+            const selectedMethod = data.replace('w_method_', '');
+            cache.userStates.set(fromId, { action: 'withdraw_address', method: selectedMethod });
+
+            const coin = getSetting('coin_name', 'STAR');
+            const fixedAmt = Number(getSetting('min_withdraw', 2));
+
+            await sendMsg(fromId, 
+                `💸 <b>Withdrawing via ${escapeHtml(selectedMethod)}</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+                `💰 পরিমাণ: <b>${fixedAmt} ${escapeHtml(coin)}</b>\n\n` +
+                `আপনার <b>${escapeHtml(selectedMethod)}</b> একাউন্ট নাম্বার বা ওয়ালেট এড্রেসটি লিখে পাঠান:`, 
+                getCancelKeyboard()
+            );
             return;
         }
 
@@ -577,8 +611,8 @@ async function handleChildUpdate(botRecord, update) {
             if (isApprove) {
                 await childDb(botId, `withdrawals/${wId}`, 'PATCH', { status: 'approved', processed_at: now });
                 updateUser(wReq.user_id, { has_withdrawn: true });
-                sendMsg(wReq.user_id, `🎉 <b>Withdrawal Approved!</b>\n💰 Amount: <b>${wReq.after_fee} ${getSetting('coin_name', 'STAR')}</b>`);
-                if (mid) editMsg(cid, mid, `✅ <b>Approved!</b>\nUser: <code>${wReq.user_id}</code> | Amount: <b>${wReq.amount}</b>`);
+                sendMsg(wReq.user_id, `🎉 <b>Withdrawal Approved!</b>\n💰 Method: <b>${escapeHtml(wReq.method || 'N/A')}</b>\nAmount: <b>${wReq.after_fee} ${getSetting('coin_name', 'STAR')}</b>`);
+                if (mid) editMsg(cid, mid, `✅ <b>Approved!</b>\nMethod: ${wReq.method || 'N/A'} | User: <code>${wReq.user_id}</code> | Amount: <b>${wReq.amount}</b>`);
             } else {
                 const targetU = await getUser(wReq.user_id);
                 updateUser(wReq.user_id, { balance: Number(targetU?.balance || 0) + Number(wReq.amount || 0) });
@@ -589,8 +623,38 @@ async function handleChildUpdate(botRecord, update) {
             return;
         }
 
-        // Settings Prompts with Clean Cancellation Keyboard
+        // ADMIN: Payment Methods Management Callbacks
         if (isChildAdmin(fromId)) {
+            if (data === 'pm_add') {
+                await ansCallback(cq.id);
+                cache.adminStates.set(fromId, { action: 'pm_add' });
+                await sendMsg(fromId, `➕ <b>নতুন পেমেন্ট মেথড বা নেটওয়ার্ক যোগ:</b>\n\nমেথডের নাম লিখে পাঠান (যেমন: bKash, Nagad, Rocket, Binance, TRC20, ইত্যাদি):`, getCancelKeyboard());
+                return;
+            }
+
+            if (data === 'pm_remove') {
+                await ansCallback(cq.id);
+                const methods = await getMethods();
+                if (!methods.length) {
+                    await sendMsg(fromId, '⚠️ কোনো মেথড নেই!');
+                    return;
+                }
+                const delButtons = methods.map(m => [{ text: `❌ Delete ${m}`, callback_data: `pm_del_${m}` }]);
+                await sendMsg(fromId, '🗑 <b>কোন মেথডটি রিমুভ করতে চান? ক্লিক করুন:</b>', { inline_keyboard: delButtons });
+                return;
+            }
+
+            if (data.startsWith('pm_del_')) {
+                const targetMethod = data.replace('pm_del_', '');
+                let methods = await getMethods();
+                methods = methods.filter(m => m !== targetMethod);
+                cache.paymentMethods = methods;
+                await childDb(botId, 'settings/payment_methods', 'PUT', methods);
+                await ansCallback(cq.id, 'Removed!');
+                await sendMsg(fromId, `✅ <b>${escapeHtml(targetMethod)}</b> মেথডটি সফলভাবে রিমুভ করা হয়েছে!`, getAdminMenu());
+                return;
+            }
+
             if (data === 'cfg_coin') {
                 await ansCallback(cq.id);
                 cache.adminStates.set(fromId, { action: 'cfg_coin' });
@@ -598,6 +662,7 @@ async function handleChildUpdate(botRecord, update) {
                 await sendMsg(fromId, `🪙 <b>Coin / Currency Name</b>\n\nবর্তমান নাম: <b>${escapeHtml(curCoin)}</b>\n\nনতুন নাম পাঠান (যেমন: ৳, STAR, USDT):`, getCancelKeyboard());
                 return;
             }
+
             if (data === 'cfg_withdraw') {
                 await ansCallback(cq.id);
                 cache.adminStates.set(fromId, { action: 'cfg_withdraw' });
@@ -606,6 +671,7 @@ async function handleChildUpdate(botRecord, update) {
                 await sendMsg(fromId, `💰 <b>Fixed Minimum Withdraw</b>\n\nবর্তমান পরিমাণ: <b>${curW} ${curCoin}</b>\n\nনতুন সংখ্যাটি লিখে পাঠান:`, getCancelKeyboard());
                 return;
             }
+
             if (data === 'cfg_referral') {
                 await ansCallback(cq.id);
                 cache.adminStates.set(fromId, { action: 'cfg_referral' });
@@ -624,10 +690,11 @@ async function handleChildUpdate(botRecord, update) {
     const msg = update.message;
     const fromId = String(msg.from.id);
     const chatId = String(msg.chat.id);
-    const text = (msg.text || '').trim();
+    const rawText = msg.text || '';
+    const text = cleanText(rawText);
     const isAdm = isChildAdmin(fromId);
 
-    // Cancel Command Handling
+    // Cancel handling
     if (text === '❌ Cancel' || text === '/cancel') {
         cache.adminStates.delete(fromId);
         cache.userStates.delete(fromId);
@@ -655,23 +722,17 @@ async function handleChildUpdate(botRecord, update) {
         updateUser(fromId, u);
     }
 
-    // Menu Buttons List (To prevent saving menu buttons as values!)
-    const MENU_BUTTONS = [
-        '🛠 Admin Panel', '🔙 Back to User Panel', '⚙️ Central Settings',
-        '👥 User & Balance', '📢 Users Broadcast', '📢 Force Channels',
-        '⭐ সেট Payouts Done', '🔧 Source Settings', '🟢 Bot: Active (ON)',
-        '🔴 Bot: OFF', '👤 My Account', '📮 Referral', '💸 Withdraw',
-        '📜 History', '📊 System Status'
-    ];
-
-    // If text is a menu button, automatically clear any stuck state!
-    if (MENU_BUTTONS.includes(text)) {
+    // Clear state if any standard menu button was pressed
+    if (text.includes('My Account') || text.includes('Referral') || text.includes('Withdraw') || 
+        text.includes('History') || text.includes('System Status') || text.includes('Admin Panel') || 
+        text.includes('Central Settings') || text.includes('Payment Methods') || text.includes('Payouts Done') || 
+        text.includes('Source Settings') || text.includes('Back to User Panel')) {
         cache.adminStates.delete(fromId);
         cache.userStates.delete(fromId);
     }
 
-    // Force Join Lock
-    if (!isAdm) {
+    // Force Join Check
+    if (!isAdm && !text.startsWith('/start')) {
         const joined = await isAllJoined(fromId);
         if (!joined) {
             const channels = Object.values(cache.forceChannels).filter(c => c && c.channel_link);
@@ -682,9 +743,24 @@ async function handleChildUpdate(botRecord, update) {
         }
     }
 
-    // Admin State Handling (Inputs with Full Validation)
+    // Admin State Inputs
     if (isAdm && cache.adminStates.has(fromId)) {
         const aState = cache.adminStates.get(fromId);
+
+        if (aState.action === 'pm_add') {
+            cache.adminStates.delete(fromId);
+            const newMethod = text.trim();
+            let methods = await getMethods();
+            if (!methods.includes(newMethod)) {
+                methods.push(newMethod);
+                cache.paymentMethods = methods;
+                await childDb(botId, 'settings/payment_methods', 'PUT', methods);
+                await sendMsg(chatId, `✅ <b>${escapeHtml(newMethod)}</b> মেথডটি সফলভাবে যুক্ত হয়েছে!`, getAdminMenu());
+            } else {
+                await sendMsg(chatId, `⚠️ এই মেথডটি ইতিমধ্যে আছে!`, getAdminMenu());
+            }
+            return;
+        }
 
         if (aState.action === 'cfg_coin') {
             cache.adminStates.delete(fromId);
@@ -739,7 +815,7 @@ async function handleChildUpdate(botRecord, update) {
         }
     }
 
-    // User State Handling: Withdraw Address
+    // User State: Withdraw Address Input
     if (!isAdm && cache.userStates.has(fromId)) {
         const uState = cache.userStates.get(fromId);
         if (uState.action === 'withdraw_address') {
@@ -759,6 +835,7 @@ async function handleChildUpdate(botRecord, update) {
                 first_name: msg.from.first_name || 'User',
                 amount: fixedAmt,
                 after_fee: fixedAmt,
+                method: uState.method || 'General',
                 withdraw_address: text,
                 transaction_id: txId,
                 status: 'pending',
@@ -768,27 +845,48 @@ async function handleChildUpdate(botRecord, update) {
             updateUser(fromId, { balance: curBal - fixedAmt });
             const saved = await childDb(botId, 'withdrawals', 'POST', wData);
 
-            await sendMsg(chatId, `🔔 <b>Withdrawal Submitted!</b>\n\n💰 Amount: <b>${fixedAmt} ${coin}</b>\n📬 Address: <code>${escapeHtml(text)}</code>\n🧾 ID: <code>${txId}</code>`, getUserMenu(fromId));
+            await sendMsg(chatId, 
+                `🔔 <b>Withdrawal Submitted!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+                `💳 Method: <b>${escapeHtml(uState.method || 'General')}</b>\n` +
+                `💰 Amount: <b>${fixedAmt} ${coin}</b>\n` +
+                `📬 Address: <code>${escapeHtml(text)}</code>\n` +
+                `🧾 ID: <code>${txId}</code>`, 
+                getUserMenu(fromId)
+            );
 
             if (saved?.name) {
-                await sendMsg(superAdminId, `🔔 <b>New Withdrawal Alert!</b>\n👤 User: <code>${fromId}</code>\n💰 Amount: <b>${fixedAmt} ${coin}</b>\n📬 Send To: <code>${escapeHtml(text)}</code>`, {
-                    inline_keyboard: [
-                        [{ text: '✅ Approve', callback_data: `c_w_app_${saved.name}` }, { text: '❌ Reject', callback_data: `c_w_rej_${saved.name}` }]
-                    ]
-                });
+                await sendMsg(superAdminId, 
+                    `🔔 <b>New Withdrawal Alert!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+                    `👤 User: <code>${fromId}</code>\n` +
+                    `💳 Method: <b>${escapeHtml(uState.method || 'General')}</b>\n` +
+                    `💰 Amount: <b>${fixedAmt} ${coin}</b>\n` +
+                    `📬 Send To: <code>${escapeHtml(text)}</code>`, 
+                    {
+                        inline_keyboard: [
+                            [{ text: '✅ Approve', callback_data: `c_w_app_${saved.name}` }, { text: '❌ Reject', callback_data: `c_w_rej_${saved.name}` }]
+                        ]
+                    }
+                );
             }
             return;
         }
     }
 
-    // User Panel Features
-    if (text === '👤 My Account') {
+    // ==========================================
+    // RESILIENT USER MENU MATCHING
+    // ==========================================
+    if (text.startsWith('/start')) {
+        await sendMsg(chatId, `🌟 <b>Welcome ${escapeHtml(msg.from.first_name)}!</b>\n\nEarn rewards easily and withdraw directly.`, getUserMenu(fromId));
+        return;
+    }
+
+    if (text.includes('My Account')) {
         const coin = getSetting('coin_name', 'STAR');
         await sendMsg(chatId, `👤 <b>MY ACCOUNT</b>\n━━━━━━━━━━━━━━━━━━━━\n👤 Name: <b>${escapeHtml(msg.from.first_name)}</b>\n🆔 ID: <code>${fromId}</code>\n⭐ Balance: <b>${formatNumber(u.balance || 0)} ${coin}</b>\n👥 Referrals: <b>${u.total_referrals || 0}</b>`, getUserMenu(fromId));
         return;
     }
 
-    if (text === '📮 Referral') {
+    if (text.includes('Referral')) {
         const coin = getSetting('coin_name', 'STAR');
         const refBonus = getSetting('referral_bonus', 1);
         const refLink = `https://t.me/${botUsername}?start=${fromId}`;
@@ -796,19 +894,47 @@ async function handleChildUpdate(botRecord, update) {
         return;
     }
 
-    if (text === '💸 Withdraw') {
+    if (text.includes('Withdraw')) {
         const coin = getSetting('coin_name', 'STAR');
         const fixedAmt = Number(getSetting('min_withdraw', 2));
         if (Number(u.balance || 0) < fixedAmt) {
             await sendMsg(chatId, `⚠️ ব্যালেন্স কম!\nমিনিমাম উইথড্র: <b>${fixedAmt} ${coin}</b>\nআপনার ব্যালেন্স: <b>${formatNumber(u.balance || 0)} ${coin}</b>`);
             return;
         }
-        cache.userStates.set(fromId, { action: 'withdraw_address' });
-        await sendMsg(chatId, `💸 <b>উইথড্র করার এড্রেস বা একাউন্ট নাম্বার পাঠান:</b>`, getCancelKeyboard());
+
+        const methods = await getMethods();
+        const kb = [];
+        for (let i = 0; i < methods.length; i += 2) {
+            if (i + 1 < methods.length) {
+                kb.push([
+                    { text: methods[i], callback_data: `w_method_${methods[i]}` },
+                    { text: methods[i + 1], callback_data: `w_method_${methods[i + 1]}` }
+                ]);
+            } else {
+                kb.push([{ text: methods[i], callback_data: `w_method_${methods[i]}` }]);
+            }
+        }
+
+        await sendMsg(chatId, `💸 <b>উইথড্র করার পেমেন্ট মেথড নির্বাচন করুন:</b>`, { inline_keyboard: kb });
         return;
     }
 
-    if (text === '📊 System Status') {
+    if (text.includes('History')) {
+        const allW = await childDb(botId, 'withdrawals') || {};
+        const myW = Object.values(allW).filter(w => String(w.user_id) === fromId);
+        if (!myW.length) {
+            await sendMsg(chatId, '📜 কোনো উইথড্র রেকর্ড পাওয়া যায়নি।');
+            return;
+        }
+        let out = `📜 <b>YOUR WITHDRAWAL HISTORY:</b>\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+        for (const item of myW.slice(-5).reverse()) {
+            out += `• <b>${item.status.toUpperCase()}</b> | ${item.amount} ${getSetting('coin_name', 'STAR')} via ${item.method || 'General'}\n  🕒 ${formatTimestamp(item.created_at)}\n`;
+        }
+        await sendMsg(chatId, out);
+        return;
+    }
+
+    if (text.includes('System Status')) {
         const users = await childDb(botId, 'users') || {};
         const totalCount = Object.keys(users).length;
         const payouts = getSetting('custom_payouts_done', '0');
@@ -835,17 +961,35 @@ async function handleChildUpdate(botRecord, update) {
         return;
     }
 
-    // Admin Panel Features
+    // ==========================================
+    // RESILIENT ADMIN MENU MATCHING
+    // ==========================================
     if (isAdm) {
-        if (text === '🛠 Admin Panel') {
+        if (text.includes('Admin Panel')) {
             await sendMsg(chatId, '🛠 <b>Admin Panel Activated</b>', getAdminMenu());
             return;
         }
-        if (text === '🔙 Back to User Panel') {
+        if (text.includes('Back to User Panel')) {
             await sendMsg(chatId, '👤 <b>User Panel</b>', getUserMenu(fromId));
             return;
         }
-        if (text === '⚙️ Central Settings') {
+        if (text.includes('Payment Methods')) {
+            const methods = await getMethods();
+            let mList = methods.map((m, i) => `${i + 1}. <b>${escapeHtml(m)}</b>`).join('\n');
+            await sendMsg(chatId, 
+                `💳 <b>PAYMENT METHODS MANAGEMENT</b>\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `বর্তমান সক্রিয় মেথড:\n${mList || 'কোনো মেথড যোগ করা নেই'}\n\n` +
+                `নিচের বাটন দিয়ে নতুন মেথড যোগ বা ডিলিট করুন:`,
+                {
+                    inline_keyboard: [
+                        [{ text: '➕ Add Method', callback_data: 'pm_add' }],
+                        [{ text: '➖ Remove Method', callback_data: 'pm_remove' }]
+                    ]
+                }
+            );
+            return;
+        }
+        if (text.includes('Central Settings')) {
             await sendMsg(chatId, '⚙️ <b>সেটিংস নির্বাচন করুন:</b>', {
                 inline_keyboard: [
                     [{ text: '🪙 Coin Name', callback_data: 'cfg_coin' }],
@@ -855,19 +999,20 @@ async function handleChildUpdate(botRecord, update) {
             });
             return;
         }
-        if (text === '⭐ সেট Payouts Done') {
+        if (text.includes('Payouts Done')) {
             cache.adminStates.set(fromId, { action: 'set_payouts_done' });
             const curP = getSetting('custom_payouts_done', '0');
             await sendMsg(chatId, `⭐ <b>Payouts Done নির্ধারণ</b>\n\nবর্তমান মান: <b>${escapeHtml(curP)}</b>\n\nনতুন সংখ্যাটি লিখে পাঠান:`, getCancelKeyboard());
             return;
         }
-        if (text === '🔧 Source Settings') {
+        if (text.includes('Source Settings')) {
             cache.adminStates.set(fromId, { action: 'set_source_info' });
-            await sendMsg(chatId, '🔧 <b>কাস্টম সোর্স নির্ধারণ:</b>\nলিখুন: <code>নাম | লিংক</code>\n\n<i>(নোট: শুধুমাত্র পেইড আপগ্রেড করা থাকলে কার্যকর হবে)</i>', getCancelKeyboard());
+            await sendMsg(chatId, '🔧 <b>সোর্স সেটিং:</b>\nলিখুন: <code>নাম | লিংক</code>\n\n<i>(নোট: শুধুমাত্র পেইড আপগ্রেড করা থাকলে কার্যকর হবে)</i>', getCancelKeyboard());
             return;
         }
     }
 
+    // Default Fallback
     await sendMsg(chatId, `🌟 <b>Welcome ${escapeHtml(msg.from.first_name)}!</b>\nEarn rewards easily and withdraw directly.`, getUserMenu(fromId));
 }
 
