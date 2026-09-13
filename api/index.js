@@ -1,6 +1,6 @@
 /*
 |--------------------------------------------------------------------------
-| TELEGRAM MULTI-BOT BUILDER ENGINE (100% PRODUCTION READY)
+| TELEGRAM MULTI-BOT BUILDER ENGINE (100% PRODUCTION READY - BUG FIXED)
 | - Builder Token: 8950164597:AAHjXI-LuvxBINicm85BwSe_-KV-k5PuLFo
 | - Builder Username: @AuraBuilderProBot
 | - Builder Super Admin: 8045367594
@@ -16,16 +16,16 @@ const express = require('express');
 const BUILDER_BOT_TOKEN = process.env.BUILDER_BOT_TOKEN || '8950164597:AAHjXI-LuvxBINicm85BwSe_-KV-k5PuLFo';
 const BUILDER_BOT_USERNAME = 'AuraBuilderProBot';
 const BUILDER_SUPER_ADMIN_ID = '8045367594';
-const APP_URL = process.env.APP_URL || 'https://star-pay-go71.onrender.com'; // আপনার লাইভ সার্ভার/রেন্ডার ডোমেইন
+const APP_URL = process.env.APP_URL || 'https://bulder.onrender.com';
 const FIREBASE_DB_URL = 'https://bkas-45e17-default-rtdb.firebaseio.com';
 
-// Local In-Memory RAM Engines
 const builderMemory = {
     states: new Map(),
     bots: new Map(),
     settings: {
         bkash: '01XXXXXXXXX',
         nagad: '01XXXXXXXXX',
+        rocket: '01XXXXXXXXX',
         upgrade_fee: '150 BDT',
         support_url: 'https://t.me/AuraSupportsBot'
     }
@@ -52,6 +52,10 @@ function formatNumber(num) {
 function formatTimestamp(sec) {
     if (!sec) return 'N/A';
     return new Date(Number(sec) * 1000).toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
+}
+
+function getCancelKeyboard() {
+    return { keyboard: [[{ text: '❌ Cancel' }]], resize_keyboard: true, one_time_keyboard: true };
 }
 
 async function firebaseRequest(path, method = 'GET', data = null) {
@@ -106,9 +110,6 @@ function getBuilderMenu(userId) {
 }
 
 async function handleBuilderUpdate(update) {
-    // -------------------------------------------------------------
-    // Inline Callbacks
-    // -------------------------------------------------------------
     if (update.callback_query) {
         const cq = update.callback_query;
         const fromId = String(cq.from.id);
@@ -124,14 +125,15 @@ async function handleBuilderUpdate(update) {
                 `বটের সিস্টেম স্ট্যাটাসে আপনার নিজস্ব নাম ও লিংক বসাতে আপগ্রেড করুন।\n\n` +
                 `💵 <b>চার্জ:</b> ${builderMemory.settings.upgrade_fee}\n` +
                 `📱 <b>বিকাশ (Personal):</b> <code>${builderMemory.settings.bkash}</code>\n` +
-                `📱 <b>নগদ (Personal):</b> <code>${builderMemory.settings.nagad}</code>\n\n` +
+                `📱 <b>নগদ (Personal):</b> <code>${builderMemory.settings.nagad}</code>\n` +
+                `📱 <b>রকেট (Personal):</b> <code>${builderMemory.settings.rocket}</code>\n\n` +
                 `টাকা পাঠিয়ে আপনার <b>TrxID</b> এবং যে নাম্বার থেকে পাঠিয়েছেন তা লিখে পাঠান:`;
             
             await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
                 chat_id: fromId,
                 text: payText,
                 parse_mode: 'HTML',
-                reply_markup: { keyboard: [[{ text: '❌ Cancel' }]], resize_keyboard: true }
+                reply_markup: getCancelKeyboard()
             });
             return;
         }
@@ -154,31 +156,14 @@ async function handleBuilderUpdate(update) {
             if (botData?.creator_id) {
                 await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
                     chat_id: botData.creator_id,
-                    text: `🎉 <b>অভিনন্দন!</b> আপনার বট <b>@${botData.bot_username}</b> এর কাস্টম ব্র্যান্ডিং অনুমোদন করা হয়েছে!\nএখন আপনি নিজের বটের এডমিন প্যানেল থেকে সোর্স নেম এবং লিংক পরিবর্তন করতে পারবেন।`,
+                    text: `🎉 <b>অভিনন্দন!</b> আপনার বট <b>@${botData.bot_username}</b> এর কাস্টম ব্র্যান্ডিং অনুমোদন করা হয়েছে!\nএখন বটের এডমিন প্যানেল থেকে নিজের সোর্স ও লিংক সেট করতে পারবেন।`,
                     parse_mode: 'HTML'
                 });
             }
             return;
         }
-
-        if (data === 'bld_set_bkash' && fromId === BUILDER_SUPER_ADMIN_ID) {
-            builderMemory.states.set(fromId, { step: 'adm_set_bkash' });
-            await telegramApi(BUILDER_BOT_TOKEN, 'answerCallbackQuery', { callback_query_id: cq.id });
-            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: 'নতুন বিকাশ নাম্বার পাঠান:' });
-            return;
-        }
-
-        if (data === 'bld_set_nagad' && fromId === BUILDER_SUPER_ADMIN_ID) {
-            builderMemory.states.set(fromId, { step: 'adm_set_nagad' });
-            await telegramApi(BUILDER_BOT_TOKEN, 'answerCallbackQuery', { callback_query_id: cq.id });
-            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: 'নতুন নগদ নাম্বার পাঠান:' });
-            return;
-        }
     }
 
-    // -------------------------------------------------------------
-    // Messages
-    // -------------------------------------------------------------
     if (!update.message) return;
     const msg = update.message;
     const fromId = String(msg.from.id);
@@ -196,7 +181,6 @@ async function handleBuilderUpdate(update) {
 
     const curState = builderMemory.states.get(fromId);
 
-    // Builder Admin Control
     if (text === '👑 Admin Control' && fromId === BUILDER_SUPER_ADMIN_ID) {
         const allBots = await firebaseRequest('builder/bots') || {};
         const count = Object.keys(allBots).length;
@@ -207,35 +191,11 @@ async function handleBuilderUpdate(update) {
         await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
             chat_id: fromId,
             text: listStr,
-            parse_mode: 'HTML',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '📱 Set bKash Number', callback_data: 'bld_set_bkash' }],
-                    [{ text: '📱 Set Nagad Number', callback_data: 'bld_set_nagad' }]
-                ]
-            }
+            parse_mode: 'HTML'
         });
         return;
     }
 
-    // Builder Admin Setting Updates
-    if (curState?.step === 'adm_set_bkash' && fromId === BUILDER_SUPER_ADMIN_ID) {
-        builderMemory.settings.bkash = text;
-        await firebaseRequest('builder/settings/bkash', 'PUT', text);
-        builderMemory.states.delete(fromId);
-        await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: `✅ বিকাশ নাম্বার আপডেট হয়েছে: ${text}`, reply_markup: getBuilderMenu(fromId) });
-        return;
-    }
-
-    if (curState?.step === 'adm_set_nagad' && fromId === BUILDER_SUPER_ADMIN_ID) {
-        builderMemory.settings.nagad = text;
-        await firebaseRequest('builder/settings/nagad', 'PUT', text);
-        builderMemory.states.delete(fromId);
-        await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: `✅ নগদ নাম্বার আপডেট হয়েছে: ${text}`, reply_markup: getBuilderMenu(fromId) });
-        return;
-    }
-
-    // Menu: Support
     if (text === 'Support') {
         await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
             chat_id: fromId,
@@ -245,7 +205,6 @@ async function handleBuilderUpdate(update) {
         return;
     }
 
-    // Menu: Upgrade Branding
     if (text === 'Upgrade Branding') {
         const allBots = await firebaseRequest('builder/bots') || {};
         const userBots = Object.values(allBots).filter(b => String(b.creator_id) === String(fromId));
@@ -272,7 +231,6 @@ async function handleBuilderUpdate(update) {
         return;
     }
 
-    // Handle Payment Trx submission
     if (curState?.step === 'awaiting_payment_trx') {
         builderMemory.states.delete(fromId);
         await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
@@ -299,7 +257,6 @@ async function handleBuilderUpdate(update) {
         return;
     }
 
-    // Menu: Bot List
     if (text === 'Bot List') {
         const allBots = await firebaseRequest('builder/bots') || {};
         const userBots = Object.values(allBots).filter(b => String(b.creator_id) === String(fromId));
@@ -330,35 +287,27 @@ async function handleBuilderUpdate(update) {
         return;
     }
 
-    // Wizard Step 0: Create Bot
     if (text === 'Create Bot') {
         builderMemory.states.set(fromId, { step: 'awaiting_token' });
         await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
             chat_id: fromId,
             text: `🤖 <b>আপনার বট টোকেন দিন:</b>\n\n(@BotFather থেকে পাওয়া API Token পাঠান)`,
             parse_mode: 'HTML',
-            reply_markup: { keyboard: [[{ text: '❌ Cancel' }]], resize_keyboard: true }
+            reply_markup: getCancelKeyboard()
         });
         return;
     }
 
-    // Wizard Step 1: Token Receive
     if (curState?.step === 'awaiting_token') {
         const token = text.trim();
         if (!/^\d{8,11}:[A-Za-z0-9_-]{35}$/.test(token)) {
-            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
-                chat_id: fromId,
-                text: '❌ ভুল টোকেন! সঠিক Bot Token পাঠান:'
-            });
+            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: '❌ ভুল টোকেন! সঠিক Bot Token পাঠান:', reply_markup: getCancelKeyboard() });
             return;
         }
 
         const me = await telegramApi(token, 'getMe');
         if (!me.ok) {
-            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
-                chat_id: fromId,
-                text: `❌ টোকেন কাজ করছে না! Telegram: <i>${escapeHtml(me.description)}</i>\nসঠিক টোকেন পাঠান:`
-            });
+            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: `❌ টোকেন কাজ করছে না! Telegram: <i>${escapeHtml(me.description)}</i>\nসঠিক টোকেন পাঠান:`, reply_markup: getCancelKeyboard() });
             return;
         }
 
@@ -371,13 +320,13 @@ async function handleBuilderUpdate(update) {
 
         await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
             chat_id: fromId,
-            text: `✅ টোকেন রিসিভ করা হয়েছে!\nবটের নাম: <b>@${me.result.username}</b>\n\nএখন বট ইউজারনেম দিন (যেমন: <code>@${me.result.username}</code>):`,
-            parse_mode: 'HTML'
+            text: `✅ টোকেন ভেরিফাইড (বট: <b>@${me.result.username}</b>)!\n\nএখন বটের <b>ইউজারনেম</b> টি দিন (যেমন: <code>@${me.result.username}</code>):`,
+            parse_mode: 'HTML',
+            reply_markup: getCancelKeyboard()
         });
         return;
     }
 
-    // Wizard Step 2: Username Receive
     if (curState?.step === 'awaiting_username') {
         const uName = text.replace('@', '').trim();
         builderMemory.states.set(fromId, {
@@ -388,19 +337,16 @@ async function handleBuilderUpdate(update) {
 
         await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
             chat_id: fromId,
-            text: `✅ ইউজারনেম রিসিভ করা হয়েছে।\n\nএখন সুপার এডমিন আইডি দিন (আপনার Numeric ID):`,
-            parse_mode: 'HTML'
+            text: `✅ ইউজারনেম গ্রহণ করা হয়েছে।\n\nএবার আপনার বটের <b>সুপার এডমিন আইডি (Numeric ID)</b> দিন:`,
+            parse_mode: 'HTML',
+            reply_markup: getCancelKeyboard()
         });
         return;
     }
 
-    // Wizard Step 3: Super Admin ID Receive & Build
     if (curState?.step === 'awaiting_admin_id') {
         if (!/^\d+$/.test(text)) {
-            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
-                chat_id: fromId,
-                text: '❌ সুপার এডমিন আইডি সংখ্যা (Numeric) হতে হবে। আবার দিন:'
-            });
+            await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', { chat_id: fromId, text: '❌ সুপার এডমিন আইডি অবশ্যই সংখ্যা (Numeric) হতে হবে। আবার দিন:', reply_markup: getCancelKeyboard() });
             return;
         }
 
@@ -408,7 +354,6 @@ async function handleBuilderUpdate(update) {
         const botId = curState.botId;
         const childWebhookUrl = `${APP_URL}/webhook/child/${botId}`;
 
-        // Setup Child Bot Webhook
         const whRes = await telegramApi(curState.token, 'setWebhook', {
             url: childWebhookUrl,
             drop_pending_updates: true
@@ -438,7 +383,6 @@ async function handleBuilderUpdate(update) {
         builderMemory.bots.set(botId, newBotRecord);
         builderMemory.states.delete(fromId);
 
-        // Default isolated settings for this newly built child bot
         await firebaseRequest(`bots/${botId}/settings`, 'PUT', {
             coin_name: 'STAR',
             min_withdraw: 2,
@@ -464,10 +408,9 @@ async function handleBuilderUpdate(update) {
         return;
     }
 
-    // Default /start
     await telegramApi(BUILDER_BOT_TOKEN, 'sendMessage', {
         chat_id: fromId,
-        text: `🌟 <b>Welcome to ${escapeHtml(BUILDER_BOT_USERNAME)}!</b>\n\nনিচের বাটনগুলো ব্যবহার করে খুব সহজেই আপনার নিজস্ব আর্নিং/উইথড্র বট বানিয়ে নিন:`,
+        text: `🌟 <b>Welcome to ${escapeHtml(BUILDER_BOT_USERNAME)}!</b>\n\nনিচের মেনু ব্যবহার করুন:`,
         parse_mode: 'HTML',
         reply_markup: getBuilderMenu(fromId)
     });
@@ -475,7 +418,7 @@ async function handleBuilderUpdate(update) {
 
 /*
 |--------------------------------------------------------------------------
-| 4. CHILD BOT RUNTIME ENGINE (100% ISOLATED MULTI-TENANT)
+| 4. CHILD BOT RUNTIME ENGINE (ISOLATED EXECUTION)
 |--------------------------------------------------------------------------
 */
 function getChildCache(botId) {
@@ -508,7 +451,6 @@ async function handleChildUpdate(botRecord, update) {
     const superAdminId = String(botRecord.super_admin_id);
     const cache = getChildCache(botId);
 
-    // Helpers
     const sendMsg = (cid, txt, rm = null) => telegramApi(botToken, 'sendMessage', {
         chat_id: cid, text: txt, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: rm
     });
@@ -545,7 +487,6 @@ async function handleChildUpdate(botRecord, update) {
         childDb(botId, `users/${uKey}`, 'PATCH', data);
     };
 
-    // Strict Force Join Checker
     const isJoined = async (chId, uid) => {
         const res = await telegramApi(botToken, 'getChatMember', { chat_id: chId, user_id: uid });
         return res?.ok && ['creator', 'administrator', 'member', 'restricted'].includes(res.result?.status);
@@ -558,7 +499,6 @@ async function handleChildUpdate(botRecord, update) {
         return res.every(Boolean);
     };
 
-    // UI Keyboards
     const getUserMenu = (uid) => {
         const kb = [
             [{ text: '👤 My Account' }, { text: '📮 Referral' }],
@@ -582,7 +522,7 @@ async function handleChildUpdate(botRecord, update) {
     };
 
     // -------------------------------------------------------------
-    // Child Callbacks
+    // Inline Callbacks
     // -------------------------------------------------------------
     if (update.callback_query) {
         const cq = update.callback_query;
@@ -649,31 +589,36 @@ async function handleChildUpdate(botRecord, update) {
             return;
         }
 
-        // Settings Callbacks
+        // Settings Prompts with Clean Cancellation Keyboard
         if (isChildAdmin(fromId)) {
             if (data === 'cfg_coin') {
                 await ansCallback(cq.id);
                 cache.adminStates.set(fromId, { action: 'cfg_coin' });
-                await sendMsg(fromId, '🪙 নতুন কয়েন বা কারেন্সি নাম পাঠান (যেমন: ৳, STAR, USDT):');
+                const curCoin = getSetting('coin_name', 'STAR');
+                await sendMsg(fromId, `🪙 <b>Coin / Currency Name</b>\n\nবর্তমান নাম: <b>${escapeHtml(curCoin)}</b>\n\nনতুন নাম পাঠান (যেমন: ৳, STAR, USDT):`, getCancelKeyboard());
                 return;
             }
             if (data === 'cfg_withdraw') {
                 await ansCallback(cq.id);
                 cache.adminStates.set(fromId, { action: 'cfg_withdraw' });
-                await sendMsg(fromId, '💰 নতুন ফিক্সড উইথড্র পরিমাণ লিখুন:');
+                const curW = getSetting('min_withdraw', 2);
+                const curCoin = getSetting('coin_name', 'STAR');
+                await sendMsg(fromId, `💰 <b>Fixed Minimum Withdraw</b>\n\nবর্তমান পরিমাণ: <b>${curW} ${curCoin}</b>\n\nনতুন সংখ্যাটি লিখে পাঠান:`, getCancelKeyboard());
                 return;
             }
             if (data === 'cfg_referral') {
                 await ansCallback(cq.id);
                 cache.adminStates.set(fromId, { action: 'cfg_referral' });
-                await sendMsg(fromId, '👥 রেফার বোনাসের পরিমাণ পাঠান:');
+                const curR = getSetting('referral_bonus', 1);
+                const curCoin = getSetting('coin_name', 'STAR');
+                await sendMsg(fromId, `👥 <b>Referral Bonus</b>\n\nবর্তমান বোনাস: <b>${curR} ${curCoin}</b>\n\nনতুন সংখ্যাটি লিখে পাঠান:`, getCancelKeyboard());
                 return;
             }
         }
     }
 
     // -------------------------------------------------------------
-    // Child Messages
+    // Messages Handling
     // -------------------------------------------------------------
     if (!update.message) return;
     const msg = update.message;
@@ -681,6 +626,14 @@ async function handleChildUpdate(botRecord, update) {
     const chatId = String(msg.chat.id);
     const text = (msg.text || '').trim();
     const isAdm = isChildAdmin(fromId);
+
+    // Cancel Command Handling
+    if (text === '❌ Cancel' || text === '/cancel') {
+        cache.adminStates.delete(fromId);
+        cache.userStates.delete(fromId);
+        await sendMsg(chatId, '❌ বাতিল করা হয়েছে।', isAdm ? getAdminMenu() : getUserMenu(fromId));
+        return;
+    }
 
     let u = await getUser(fromId);
     if (!u) {
@@ -702,7 +655,22 @@ async function handleChildUpdate(botRecord, update) {
         updateUser(fromId, u);
     }
 
-    // Force Join Lock (User must join all channels)
+    // Menu Buttons List (To prevent saving menu buttons as values!)
+    const MENU_BUTTONS = [
+        '🛠 Admin Panel', '🔙 Back to User Panel', '⚙️ Central Settings',
+        '👥 User & Balance', '📢 Users Broadcast', '📢 Force Channels',
+        '⭐ সেট Payouts Done', '🔧 Source Settings', '🟢 Bot: Active (ON)',
+        '🔴 Bot: OFF', '👤 My Account', '📮 Referral', '💸 Withdraw',
+        '📜 History', '📊 System Status'
+    ];
+
+    // If text is a menu button, automatically clear any stuck state!
+    if (MENU_BUTTONS.includes(text)) {
+        cache.adminStates.delete(fromId);
+        cache.userStates.delete(fromId);
+    }
+
+    // Force Join Lock
     if (!isAdm) {
         const joined = await isAllJoined(fromId);
         if (!joined) {
@@ -714,41 +682,50 @@ async function handleChildUpdate(botRecord, update) {
         }
     }
 
-    // Admin State Handling
+    // Admin State Handling (Inputs with Full Validation)
     if (isAdm && cache.adminStates.has(fromId)) {
         const aState = cache.adminStates.get(fromId);
-        cache.adminStates.delete(fromId);
 
         if (aState.action === 'cfg_coin') {
+            cache.adminStates.delete(fromId);
             setSetting('coin_name', text.toUpperCase());
-            await sendMsg(chatId, `✅ Coin নাম পরিবর্তিত হয়েছে: <b>${escapeHtml(text.toUpperCase())}</b>`, getAdminMenu());
+            await sendMsg(chatId, `✅ <b>Coin নাম পরিবর্তিত হয়েছে:</b> <b>${escapeHtml(text.toUpperCase())}</b>`, getAdminMenu());
             return;
         }
+
         if (aState.action === 'cfg_withdraw') {
             const val = Number(text);
             if (!isNaN(val) && val > 0) {
+                cache.adminStates.delete(fromId);
                 setSetting('min_withdraw', val);
-                await sendMsg(chatId, `✅ ফিক্সড উইথড্র সেট হয়েছে: <b>${val}</b>`, getAdminMenu());
+                await sendMsg(chatId, `✅ <b>ফিক্সড উইথড্র সেট হয়েছে:</b> <b>${val}</b>`, getAdminMenu());
             } else {
-                await sendMsg(chatId, '❌ সঠিক সংখ্যা পাঠান!', getAdminMenu());
+                await sendMsg(chatId, '❌ সঠিক সংখ্যা পাঠান:', getCancelKeyboard());
             }
             return;
         }
+
         if (aState.action === 'cfg_referral') {
             const val = Number(text);
             if (!isNaN(val) && val >= 0) {
+                cache.adminStates.delete(fromId);
                 setSetting('referral_bonus', val);
-                await sendMsg(chatId, `✅ রেফার বোনাস সেট হয়েছে: <b>${val}</b>`, getAdminMenu());
+                await sendMsg(chatId, `✅ <b>রেফার বোনাস সেট হয়েছে:</b> <b>${val}</b>`, getAdminMenu());
+            } else {
+                await sendMsg(chatId, '❌ সঠিক সংখ্যা পাঠান:', getCancelKeyboard());
             }
             return;
         }
+
         if (aState.action === 'set_payouts_done') {
+            cache.adminStates.delete(fromId);
             setSetting('custom_payouts_done', text);
-            await sendMsg(chatId, `✅ Payouts Done সেট হয়েছে: <b>${escapeHtml(text)}</b>`, getAdminMenu());
+            await sendMsg(chatId, `✅ <b>Payouts Done সেট হয়েছে:</b> <b>${escapeHtml(text)}</b>`, getAdminMenu());
             return;
         }
+
         if (aState.action === 'set_source_info') {
-            // BRANDING LOCK: Must be upgraded through builder bot
+            cache.adminStates.delete(fromId);
             const freshBot = await firebaseRequest(`builder/bots/${botId}`);
             if (!freshBot?.is_upgraded) {
                 await sendMsg(chatId, `⛔ <b>আপগ্রেড প্রয়োজন!</b>\n\nসোর্স নাম ও লিংক নিজের মতো পরিবর্তন করতে মেইন বিল্ডার বটে গিয়ে <b>Upgrade Branding</b> সম্পন্ন করুন।`, getAdminMenu());
@@ -757,7 +734,7 @@ async function handleChildUpdate(botRecord, update) {
             const parts = text.split('|').map(s => s.trim());
             setSetting('custom_source_name', parts[0] || 'Custom Dev');
             setSetting('custom_source_link', parts[1] || `https://t.me/${botUsername}`);
-            await sendMsg(chatId, `✅ কাস্টম সোর্স সফলভাবে আপডেট করা হয়েছে!`, getAdminMenu());
+            await sendMsg(chatId, `✅ <b>কাস্টম সোর্স সফলভাবে আপডেট করা হয়েছে!</b>`, getAdminMenu());
             return;
         }
     }
@@ -793,7 +770,6 @@ async function handleChildUpdate(botRecord, update) {
 
             await sendMsg(chatId, `🔔 <b>Withdrawal Submitted!</b>\n\n💰 Amount: <b>${fixedAmt} ${coin}</b>\n📬 Address: <code>${escapeHtml(text)}</code>\n🧾 ID: <code>${txId}</code>`, getUserMenu(fromId));
 
-            // Alert Child Super Admin
             if (saved?.name) {
                 await sendMsg(superAdminId, `🔔 <b>New Withdrawal Alert!</b>\n👤 User: <code>${fromId}</code>\n💰 Amount: <b>${fixedAmt} ${coin}</b>\n📬 Send To: <code>${escapeHtml(text)}</code>`, {
                     inline_keyboard: [
@@ -828,7 +804,7 @@ async function handleChildUpdate(botRecord, update) {
             return;
         }
         cache.userStates.set(fromId, { action: 'withdraw_address' });
-        await sendMsg(chatId, `💸 <b>উইথড্র করার এড্রেস বা একাউন্ট নাম্বার পাঠান:</b>`);
+        await sendMsg(chatId, `💸 <b>উইথড্র করার এড্রেস বা একাউন্ট নাম্বার পাঠান:</b>`, getCancelKeyboard());
         return;
     }
 
@@ -838,7 +814,6 @@ async function handleChildUpdate(botRecord, update) {
         const payouts = getSetting('custom_payouts_done', '0');
         const coin = getSetting('coin_name', 'STAR');
 
-        // Dynamic Source attribution
         const freshBot = await firebaseRequest(`builder/bots/${botId}`);
         let sourceHtml = '';
 
@@ -847,7 +822,6 @@ async function handleChildUpdate(botRecord, update) {
             const sLink = getSetting('custom_source_link', `https://t.me/${botUsername}`);
             sourceHtml = `<a href="${escapeHtml(sLink)}">${escapeHtml(sName)}</a>`;
         } else {
-            // Default link to your main Builder Bot!
             sourceHtml = `<a href="https://t.me/${BUILDER_BOT_USERNAME}">${BUILDER_BOT_USERNAME}</a>`;
         }
 
@@ -883,12 +857,13 @@ async function handleChildUpdate(botRecord, update) {
         }
         if (text === '⭐ সেট Payouts Done') {
             cache.adminStates.set(fromId, { action: 'set_payouts_done' });
-            await sendMsg(chatId, '⭐ কত Payouts Done দেখাতে চান? সংখ্যা পাঠান:');
+            const curP = getSetting('custom_payouts_done', '0');
+            await sendMsg(chatId, `⭐ <b>Payouts Done নির্ধারণ</b>\n\nবর্তমান মান: <b>${escapeHtml(curP)}</b>\n\nনতুন সংখ্যাটি লিখে পাঠান:`, getCancelKeyboard());
             return;
         }
         if (text === '🔧 Source Settings') {
             cache.adminStates.set(fromId, { action: 'set_source_info' });
-            await sendMsg(chatId, '🔧 <b>সোর্স সেটিং:</b>\nলিখুন: <code>নাম | লিংক</code>\n\n<i>(নোট: আপগ্রেড না থাকলে পরিবর্তন কার্যকর হবে না)</i>');
+            await sendMsg(chatId, '🔧 <b>কাস্টম সোর্স নির্ধারণ:</b>\nলিখুন: <code>নাম | লিংক</code>\n\n<i>(নোট: শুধুমাত্র পেইড আপগ্রেড করা থাকলে কার্যকর হবে)</i>', getCancelKeyboard());
             return;
         }
     }
@@ -904,7 +879,6 @@ async function handleChildUpdate(botRecord, update) {
 const app = express();
 app.use(express.json());
 
-// Main Builder Bot Webhook
 app.post('/webhook/builder', async (req, res) => {
     res.sendStatus(200);
     try {
@@ -914,7 +888,6 @@ app.post('/webhook/builder', async (req, res) => {
     }
 });
 
-// Multiplexed Child Bots Webhook
 app.post('/webhook/child/:botId', async (req, res) => {
     res.sendStatus(200);
     const botId = req.params.botId;
@@ -937,12 +910,10 @@ app.post('/webhook/child/:botId', async (req, res) => {
 app.get('/ping', (req, res) => res.send('Pong 🏓'));
 app.get('/', (req, res) => res.send('Aura Bot Builder System is Running Live 🚀'));
 
-// 24/7 Render Anti-Sleep Worker
 setInterval(() => {
     fetch(`${APP_URL}/ping`).catch(() => {});
 }, 8 * 60 * 1000);
 
-// Initialize system on boot
 async function initSystem() {
     console.log('⚡ Warming up Multi-Bot Builder Engine...');
     const allBots = await firebaseRequest('builder/bots') || {};
@@ -951,7 +922,6 @@ async function initSystem() {
     }
     console.log(`✅ Loaded ${builderMemory.bots.size} child bots into memory.`);
 
-    // Set Webhook for Builder Bot
     const bWh = `${APP_URL}/webhook/builder`;
     const setup = await telegramApi(BUILDER_BOT_TOKEN, 'setWebhook', { url: bWh, drop_pending_updates: true });
     console.log(`🤖 Builder Bot Webhook:`, setup);
