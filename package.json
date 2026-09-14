@@ -1,15 +1,8 @@
 {
-  "name": "telegram-bot-builder",
+  "name": "telegram-multi-bot-hub",
   "version": "1.0.0",
-  "description": "Multi-Bot Builder Platform with Isolated Firebase Engine",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.19.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "start": "node api/index.js"
   }
 }
