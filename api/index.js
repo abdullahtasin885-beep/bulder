@@ -3,19 +3,19 @@ import express from "express";
 const app = express();
 app.use(express.json());
 
-// কনফিগারেশন
-const MAIN_BOT_TOKEN = "8950164597:AAHjXI-LuvxBINicm85BwSe_-KV-k5PuLFo";
+// নতুন তথ্য
+const MAIN_BOT_TOKEN = "8809628706:AAEnEIApKgwx-KsTOtIGHgV4ZhpAt_E7RMw";
 const SUPER_ADMIN = 8045367594;
-const FIREBASE_DB = "https://bkas-45e17-default-rtdb.firebaseio.com";
+const FIREBASE_DB = "https://aura-star-pay-default-rtdb.firebaseio.com";
 
-// ইন-মেমোরি ক্যাশ (Render-এ ইনস্ট্যান্ট এবং ১০০% নিশ্চিত কাজ করার জন্য)
+// ইন-মেমোরি স্টোরেজ
 const memoryStore = {
   bots: {},          // { [botId]: { token, username, firstName } }
   users: {},         // { [botId]: { [userId]: true } }
-  adminState: null   // { step: '...', targetBotId: '...' }
+  adminState: null   // এডমিনের বর্তমান অবস্থা
 };
 
-// টেলিগ্রাম API রিকোয়েস্ট ফাংশন
+// Telegram API Helper
 async function tgRequest(token, method, data = {}) {
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
@@ -30,7 +30,7 @@ async function tgRequest(token, method, data = {}) {
   }
 }
 
-// ফায়ারবেস REST API ফাংশন (ব্যাকগ্রাউন্ডে সেভ হবে)
+// Firebase REST API Helper
 async function dbGet(path) {
   try {
     const res = await fetch(`${FIREBASE_DB}/${path}.json`);
@@ -56,35 +56,82 @@ async function dbDelete(path) {
   } catch (err) {}
 }
 
-// সার্ভার স্টার্ট হলে পূর্বের বটগুলো মেমোরিতে লোড করা
-(async () => {
-  const savedBots = await dbGet("bots");
-  if (savedBots) {
-    for (const [botId, bData] of Object.entries(savedBots)) {
-      if (bData.info) {
-        memoryStore.bots[botId] = bData.info;
-      }
-      if (bData.users) {
-        memoryStore.users[botId] = bData.users;
+// ডাটাবেজের যেকোনো অবজেক্ট/লিস্ট থেকে সম্ভাব্য ইউজার আইডি বের করার হেল্পার
+function extractUserIds(dataObj) {
+  const ids = new Set();
+  if (!dataObj || typeof dataObj !== "object") return ids;
+
+  for (const [key, val] of Object.entries(dataObj)) {
+    // কী নিজেই যদি টেলিগ্রাম আইডি হয় (সংখ্যা)
+    if (/^\d{6,15}$/.test(key)) {
+      ids.add(key);
+    }
+    // অবজেক্টের ভেতর id / userId / chat_id থাকলে
+    if (val && typeof val === "object") {
+      if (val.id && /^\d{6,15}$/.test(String(val.id))) ids.add(String(val.id));
+      if (val.userId && /^\d{6,15}$/.test(String(val.userId))) ids.add(String(val.userId));
+      if (val.chat_id && /^\d{6,15}$/.test(String(val.chat_id))) ids.add(String(val.chat_id));
+      if (val.chatId && /^\d{6,15}$/.test(String(val.chatId))) ids.add(String(val.chatId));
+    }
+  }
+  return ids;
+}
+
+// ডাটাবেজ থেকে আগের সংরক্ষিত সব বট ও সমস্ত পুরাতন ইউজার মেমোরিতে লোড করা
+async function loadPreviousData() {
+  const mainBotId = MAIN_BOT_TOKEN.split(":")[0];
+  if (!memoryStore.users[mainBotId]) memoryStore.users[mainBotId] = {};
+
+  try {
+    // ১. /bots থেকে বট এবং তাদের ইউজার লোড
+    const savedBots = await dbGet("bots");
+    if (savedBots) {
+      for (const [botId, bData] of Object.entries(savedBots)) {
+        if (bData.info) memoryStore.bots[botId] = bData.info;
+        if (!memoryStore.users[botId]) memoryStore.users[botId] = {};
+
+        if (bData.users) {
+          const ids = extractUserIds(bData.users);
+          ids.forEach(uid => (memoryStore.users[botId][uid] = true));
+        }
       }
     }
-    console.log(`[Startup] Loaded ${Object.keys(memoryStore.bots).length} bots from Firebase.`);
-  }
-})();
 
-// সুপার এডমিনের স্থায়ী রিপ্লাই কিবোর্ড (নিচের মেনু বাটন)
+    // ২. আপনার ডাটাবেজে আগে থেকে থাকা কমন ফোল্ডারগুলো স্ক্যান করা (/users, /all_users, /members ইত্যাদি)
+    const possiblePaths = ["users", "all_users", "members", "bot_users", "subscribers", "data"];
+    for (const p of possiblePaths) {
+      const pData = await dbGet(p);
+      if (pData) {
+        const ids = extractUserIds(pData);
+        ids.forEach(uid => {
+          memoryStore.users[mainBotId][uid] = true;
+        });
+      }
+    }
+
+    const totalLoaded = Object.keys(memoryStore.users[mainBotId]).length;
+    console.log(`[Database Sync] Found ${totalLoaded} existing users in Firebase!`);
+  } catch (err) {
+    console.error("Load Previous Data Error:", err);
+  }
+}
+
+// সার্ভার স্টার্টে লোড চালানো
+loadPreviousData();
+
+// সুপার এডমিনের বড় মেনু বাটন (Reply Keyboard)
 const adminReplyKeyboard = {
   keyboard: [
     [{ text: "➕ Add Bot" }, { text: "➖ Remove Bot" }],
     [{ text: "📋 Bot List & Stats" }],
     [{ text: "📢 Single Broadcast" }, { text: "🌐 All Bots Broadcast" }],
-    [{ text: "❌ Cancel" }]
+    [{ text: "🔄 Refresh Old Users" }, { text: "❌ Cancel" }]
   ],
   resize_keyboard: true,
   is_persistent: true
 };
 
-// সাধারণ ইউজারদের জন্য নির্ধারিত রেসপন্স বাটন
+// ইউজারদের জন্য নির্ধারিত নোটিশ ও বাটন
 const defaultOffText = `⛔ Bot currently off!\n🔧 Source: SΛKIB 〆 DΞVΞLOPΞR\nSupport: @AuraSupportsBot`;
 const defaultButtons = {
   inline_keyboard: [
@@ -93,13 +140,13 @@ const defaultButtons = {
   ]
 };
 
-// হেলথ চেক রুট (Render একটিভ রাখার জন্য)
+// সার্ভার হেলথ চেক
 app.get("/", (req, res) => {
-  res.send("Aura Builder Pro Webhook Server is Live!");
+  res.send("Aura Star Pay Multi-Bot Engine is Running Live!");
 });
 
-// মূল হ্যান্ডলার
-async function handleUpdate(req, res) {
+// মূল হ্যান্ডলার ফাংশন
+async function handleTelegramUpdate(req, res) {
   const currentToken = req.query?.token || MAIN_BOT_TOKEN;
   const currentBotId = currentToken.split(":")[0];
   const isMainBot = currentToken === MAIN_BOT_TOKEN;
@@ -110,7 +157,7 @@ async function handleUpdate(req, res) {
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   const baseUrl = `https://${host}/api`;
 
-  // ---------------- ১. ইনলাইন বাটন হ্যান্ডলিং (এডমিন নির্বাচন) ----------------
+  // ---------------- ১. ইনলাইন বাটন হ্যান্ডলিং ----------------
   if (update.callback_query) {
     const cb = update.callback_query;
     const adminId = cb.from.id;
@@ -119,7 +166,6 @@ async function handleUpdate(req, res) {
     if (Number(adminId) === SUPER_ADMIN && isMainBot) {
       await tgRequest(currentToken, "answerCallbackQuery", { callback_query_id: cb.id });
 
-      // ডিলিট বট নির্বাচন
       if (data.startsWith("del_bot_")) {
         const removeId = data.replace("del_bot_", "");
         const targetBot = memoryStore.bots[removeId];
@@ -136,9 +182,7 @@ async function handleUpdate(req, res) {
           parse_mode: "Markdown",
           reply_markup: adminReplyKeyboard
         });
-      }
-      // সিঙ্গেল ব্রডকাস্টের জন্য বট বাছাই
-      else if (data.startsWith("target_bc_")) {
+      } else if (data.startsWith("target_bc_")) {
         const targetId = data.replace("target_bc_", "");
         memoryStore.adminState = { step: "WAITING_SINGLE_BC", targetBotId: targetId };
 
@@ -164,7 +208,7 @@ async function handleUpdate(req, res) {
   const userId = message.from.id;
   const text = message.text ? message.text.trim() : "";
 
-  // ফায়ারবেস এবং মেমোরিতে ইউজার ট্র্যাকিং
+  // নতুন ইউজার ফায়ারবেস এবং মেমোরিতে সেভ করা
   if (!memoryStore.users[currentBotId]) memoryStore.users[currentBotId] = {};
   memoryStore.users[currentBotId][userId] = true;
 
@@ -175,10 +219,8 @@ async function handleUpdate(req, res) {
     last_active: Date.now()
   });
 
-  // ---------------- ৩. সুপার এডমিন কন্ট্রোল (মেইন বটে) ----------------
+  // ---------------- ৩. সুপার এডমিন কন্ট্রোল ----------------
   if (Number(userId) === SUPER_ADMIN && isMainBot) {
-
-    // ক্যানসেল হ্যান্ডলার
     if (text === "❌ Cancel" || text === "/cancel") {
       memoryStore.adminState = null;
       await tgRequest(currentToken, "sendMessage", {
@@ -189,21 +231,20 @@ async function handleUpdate(req, res) {
       return res.status(200).send("OK");
     }
 
-    // স্টার্ট বা এডমিন কমান্ড
     if (text === "/start" || text === "/admin" || text === "🔙 Main Menu") {
       memoryStore.adminState = null;
       await tgRequest(currentToken, "sendMessage", {
         chat_id: chatId,
-        text: `👑 **AURA BUILDER PRO প্যানেলে স্বাগতম!**\n\nনিচের রিপ্লাই বাটনগুলো ব্যবহার করে সম্পূর্ণ সিস্টেম কন্ট্রোল করুন।`,
+        text: `👑 **AURA STAR PAY কন্ট্রোল প্যানেল**\n\nনিচের বাটনগুলো ব্যবহার করে সিস্টেম পরিচালনা করুন:`,
         parse_mode: "Markdown",
         reply_markup: adminReplyKeyboard
       });
       return res.status(200).send("OK");
     }
 
-    // স্টেট অনুযায়ী কাজ করা (টোকেন নেওয়া / ব্রডকাস্ট নেওয়া)
+    // স্টেট অনুযায়ী কাজ করা (টোকেন বা ব্রডকাস্ট মেসেজ রিসিভ)
     if (memoryStore.adminState) {
-      // (ক) বট যুক্ত করা
+      // (ক) নতুন বট কানেক্ট করা
       if (memoryStore.adminState.step === "WAITING_BOT_TOKEN") {
         const inputToken = text;
         const testBot = await tgRequest(inputToken, "getMe");
@@ -211,7 +252,7 @@ async function handleUpdate(req, res) {
         if (!testBot || !testBot.ok) {
           await tgRequest(currentToken, "sendMessage", {
             chat_id: chatId,
-            text: "❌ ভুল টোকেন! বটটি টেলিগ্রামে পাওয়া যায়নি। অনুগ্রহ করে সঠিক Bot Token দিন অথবা '❌ Cancel' চাপুন।",
+            text: "❌ ভুল টোকেন! বটটি খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক Token দিন অথবা '❌ Cancel' চাপুন।",
             reply_markup: {
               keyboard: [[{ text: "❌ Cancel" }]],
               resize_keyboard: true
@@ -232,15 +273,22 @@ async function handleUpdate(req, res) {
           connected_at: Date.now()
         };
 
-        // মেমোরি ও ডাটাবেজে সংরক্ষণ
         memoryStore.bots[newBot.id] = botInfo;
         dbSet(`bots/${newBot.id}/info`, botInfo);
+
+        // যদি পূর্বে এই বটের কোনো ইউজার ফায়ারবেসে থেকে থাকে তা সিঙ্ক করা
+        const oldBotData = await dbGet(`bots/${newBot.id}/users`);
+        if (oldBotData) {
+          if (!memoryStore.users[newBot.id]) memoryStore.users[newBot.id] = {};
+          const ids = extractUserIds(oldBotData);
+          ids.forEach(uid => (memoryStore.users[newBot.id][uid] = true));
+        }
 
         memoryStore.adminState = null;
 
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `🎉 **বট সফলভাবে কানেক্ট হয়েছে!**\n\n🤖 নাম: ${newBot.first_name}\n🔗 ইউজারনেম: @${newBot.username}\n🆔 ID: \`${newBot.id}\`\n\nএখন এই বটে কোনো ইউজার মেসেজ দিলে স্বয়ংক্রিয়ভাবে অফ নোটিশ দেখাবে এবং ইউজার সেভ হবে।`,
+          text: `🎉 **বট সফলভাবে কানেক্ট হয়েছে!**\n\n🤖 নাম: ${newBot.first_name}\n🔗 ইউজারনেম: @${newBot.username}\n🆔 ID: \`${newBot.id}\`\n\nএখন থেকে এই বটে মেসেজ দিলে অটোমেটিক অফ নোটিশ দেখাবে।`,
           parse_mode: "Markdown",
           reply_markup: adminReplyKeyboard
         });
@@ -256,12 +304,12 @@ async function handleUpdate(req, res) {
           targetToken = memoryStore.bots[targetBotId].token;
         }
 
-        const usersObj = memoryStore.users[targetBotId] || (await dbGet(`bots/${targetBotId}/users`)) || {};
+        const usersObj = memoryStore.users[targetBotId] || {};
         const userList = Object.keys(usersObj);
 
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `⏳ ব্রডকাস্ট শুরু হয়েছে মোট ${userList.length} জন ইউজারের কাছে...`
+          text: `⏳ ব্রডকাস্ট পাঠানো শুরু হয়েছে মোট ${userList.length} জন ইউজারের কাছে...`
         });
 
         let sCount = 0;
@@ -279,7 +327,7 @@ async function handleUpdate(req, res) {
         memoryStore.adminState = null;
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `✅ ব্রডকাস্ট সম্পন্ন!\nসফল: ${sCount}\nব্যর্থ: ${fCount}`,
+          text: `✅ সিঙ্গেল বট ব্রডকাস্ট সম্পন্ন!\nসফল: ${sCount}\nব্যর্থ: ${fCount}`,
           reply_markup: adminReplyKeyboard
         });
         return res.status(200).send("OK");
@@ -296,14 +344,14 @@ async function handleUpdate(req, res) {
 
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `⏳ মোট ${botList.length} টি বটের সমস্ত ইউজারের কাছে ব্রডকাস্ট পাঠানো শুরু হয়েছে...`
+          text: `⏳ মোট ${botList.length} টি বটের সমস্ত ইউজারের কাছে ব্রডকাস্ট শুরু হচ্ছে...`
         });
 
         let totalS = 0;
         let totalF = 0;
 
         for (const b of botList) {
-          const uObj = memoryStore.users[b.id] || (await dbGet(`bots/${b.id}/users`)) || {};
+          const uObj = memoryStore.users[b.id] || {};
           for (const uId of Object.keys(uObj)) {
             const r = await tgRequest(b.token, "copyMessage", {
               chat_id: uId,
@@ -326,7 +374,7 @@ async function handleUpdate(req, res) {
       }
     }
 
-    // বাটন কমান্ড হ্যান্ডলিং
+    // বাটন হ্যান্ডলারস
     if (text === "➕ Add Bot") {
       memoryStore.adminState = { step: "WAITING_BOT_TOKEN" };
       await tgRequest(currentToken, "sendMessage", {
@@ -344,10 +392,10 @@ async function handleUpdate(req, res) {
     if (text === "📋 Bot List & Stats") {
       const keys = Object.keys(memoryStore.bots);
       const mainBotUsers = memoryStore.users[currentBotId] ? Object.keys(memoryStore.users[currentBotId]).length : 0;
-      let msg = `🤖 **মেইন বট:** @AuraBuilderProBot\n👥 ইউজার: ${mainBotUsers}\n\n━━━━━━━━━━━━━━━\n📋 **সংযুক্ত অন্যান্য বট:**\n\n`;
+      let msg = `🤖 **মেইন বট:** Aura Star Pay\n👥 মোট আগের ও বর্তমান ইউজার: ${mainBotUsers}\n\n━━━━━━━━━━━━━━━\n📋 **কানেক্টেড অতিরিক্ত বট:**\n\n`;
 
       if (keys.length === 0) {
-        msg += "⚠️ কোনো অতিরিক্ত বট কানেক্ট করা নেই।";
+        msg += "⚠️ বর্তমানে কোনো অতিরিক্ত বট কানেক্ট করা নেই।";
       } else {
         for (const [id, bot] of Object.entries(memoryStore.bots)) {
           const uCount = memoryStore.users[id] ? Object.keys(memoryStore.users[id]).length : 0;
@@ -382,7 +430,7 @@ async function handleUpdate(req, res) {
 
       await tgRequest(currentToken, "sendMessage", {
         chat_id: chatId,
-        text: "⚠️ কোন বটটি রিমুভ করতে চান নিচের বাটন চাপুন:",
+        text: "⚠️ কোন বটটি রিমুভ করতে চান সিলেক্ট করুন:",
         reply_markup: { inline_keyboard: inlineBtns }
       });
       return res.status(200).send("OK");
@@ -390,7 +438,7 @@ async function handleUpdate(req, res) {
 
     if (text === "📢 Single Broadcast") {
       const inlineBtns = [
-        [{ text: `📢 Main Bot (@AuraBuilderProBot)`, callback_data: `target_bc_${currentBotId}` }]
+        [{ text: `📢 Main Bot (Aura Star Pay)`, callback_data: `target_bc_${currentBotId}` }]
       ];
       for (const [id, bot] of Object.entries(memoryStore.bots)) {
         inlineBtns.push([{ text: `📢 @${bot.username || id}`, callback_data: `target_bc_${id}` }]);
@@ -398,7 +446,7 @@ async function handleUpdate(req, res) {
 
       await tgRequest(currentToken, "sendMessage", {
         chat_id: chatId,
-        text: "🎯 যে বটটির ইউজারদের কাছে ব্রডকাস্ট পাঠাতে চান সেটি বেছে নিন:",
+        text: "🎯 যে বটটিতে ব্রডকাস্ট করতে চান সেটি সিলেক্ট করুন:",
         reply_markup: { inline_keyboard: inlineBtns }
       });
       return res.status(200).send("OK");
@@ -408,7 +456,7 @@ async function handleUpdate(req, res) {
       memoryStore.adminState = { step: "WAITING_ALL_BC" };
       await tgRequest(currentToken, "sendMessage", {
         chat_id: chatId,
-        text: "🌐 **অল বট ব্রডকাস্ট:**\n\nসবগুলো বটের সমস্ত ইউজারদের কাছে পাঠানোর জন্য যেকোনো টেক্সট, ফটো বা মেসেজ পাঠান:\n\n(বাতিল করতে '❌ Cancel' বাটন চাপুন)",
+        text: "🌐 **অল বট ব্রডকাস্ট:**\n\nসবগুলো বটের পুরোনো ও নতুন সমস্ত ইউজারের কাছে পাঠানোর জন্য মেসেজ বা ছবি পাঠান:\n\n(বাতিল করতে '❌ Cancel' বাটন চাপুন)",
         parse_mode: "Markdown",
         reply_markup: {
           keyboard: [[{ text: "❌ Cancel" }]],
@@ -418,10 +466,21 @@ async function handleUpdate(req, res) {
       return res.status(200).send("OK");
     }
 
-    // সুপার এডমিন কোনো অচেনা টেক্সট দিলে আবার মেনু দেখানো
+    if (text === "🔄 Refresh Old Users") {
+      await loadPreviousData();
+      const count = memoryStore.users[currentBotId] ? Object.keys(memoryStore.users[currentBotId]).length : 0;
+      await tgRequest(currentToken, "sendMessage", {
+        chat_id: chatId,
+        text: `✅ ডাটাবেজ পুনরায় স্ক্যান করা হয়েছে!\nমোট ইউজার পাওয়া গেছে: ${count}`,
+        reply_markup: adminReplyKeyboard
+      });
+      return res.status(200).send("OK");
+    }
+
+    // অন্য যেকোনো টেক্সটে এডমিন মেনু
     await tgRequest(currentToken, "sendMessage", {
       chat_id: chatId,
-      text: "👑 নিচের মেনু বাটন থেকে অপশন সিলেক্ট করুন:",
+      text: "👑 নিচের মেনু বাটন ব্যবহার করুন:",
       reply_markup: adminReplyKeyboard
     });
     return res.status(200).send("OK");
@@ -437,8 +496,8 @@ async function handleUpdate(req, res) {
   return res.status(200).send("OK");
 }
 
-app.post("/api", handleUpdate);
-app.post("/", handleUpdate);
+app.post("/api", handleTelegramUpdate);
+app.post("/", handleTelegramUpdate);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
