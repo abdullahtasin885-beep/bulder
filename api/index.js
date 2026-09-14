@@ -1,6 +1,10 @@
-// GitHub / Vercel Serverless Function: api/index.js
+import express from "express";
 
-const MAIN_BOT_TOKEN = "8809628706:AAE3U53e12KGbyMBmZQqmg-NmaCzGPCdg18";
+const app = express();
+app.use(express.json());
+
+// নতুন তথ্য
+const MAIN_BOT_TOKEN = "8950164597:AAHjXI-LuvxBINicm85BwSe_-KV-k5PuLFo";
 const SUPER_ADMIN = 8045367594;
 const FIREBASE_DB = "https://bkas-45e17-default-rtdb.firebaseio.com";
 
@@ -52,13 +56,13 @@ async function dbDelete(path) {
   }
 }
 
-// Main Vercel Serverless Handler
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(200).send("Bot Webhook is Live!");
-  }
+// হেলথ চেক রুট (Render যাতে সার্ভিস একটিভ দেখতে পায়)
+app.get("/", (req, res) => {
+  res.send("Bot Webhook Server is Running Live on Render!");
+});
 
-  // Token: can come from query param (for connected bots) or default to MAIN_BOT_TOKEN
+// মেইন টেলিগ্রাম হ্যান্ডলার
+async function handleTelegramUpdate(req, res) {
   const currentToken = req.query?.token || MAIN_BOT_TOKEN;
   const currentBotId = currentToken.split(":")[0];
   const isMainBot = currentToken === MAIN_BOT_TOKEN;
@@ -66,11 +70,11 @@ export default async function handler(req, res) {
   const update = req.body;
   if (!update) return res.status(200).send("No update");
 
-  // Host URL detection for Webhooks
+  // Render Host URL ডিটেকশন
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   const baseUrl = `https://${host}/api`;
 
-  // Standard Reply for Users (Bot Off Notice)
+  // সাধারণ ইউজারদের জন্য অফ নোটিশ
   const defaultOffText = `⛔ Bot currently off!\n🔧 Source: SΛKIB 〆 DΞVΞLOPΞR\nSupport: @AuraSupportsBot`;
   const defaultButtons = {
     inline_keyboard: [
@@ -89,7 +93,7 @@ export default async function handler(req, res) {
     ],
   };
 
-  // ---------------- Handle Callback Queries (Admin Button Clicks) ----------------
+  // ---------------- Callback Queries (Admin Button Clicks) ----------------
   if (update.callback_query) {
     const cb = update.callback_query;
     const adminId = cb.from.id;
@@ -106,7 +110,6 @@ export default async function handler(req, res) {
 
     await tgRequest(currentToken, "answerCallbackQuery", { callback_query_id: cb.id });
 
-    // Panel Menu Actions
     if (data === "admin_menu") {
       await sendAdminPanel(currentToken, adminId, cb.message.message_id);
     } else if (data === "add_bot") {
@@ -125,7 +128,7 @@ export default async function handler(req, res) {
       } else {
         for (const [id, bot] of Object.entries(bots)) {
           const userCount = bot.users ? Object.keys(bot.users).length : 0;
-          msg += `🤖 @${bot.username || "Unknown"} (ID: \`${id}\`)\n👥 ইউজার: ${userCount}\n\n`;
+          msg += `🤖 @${bot.info?.username || id} (ID: \`${id}\`)\n👥 ইউজার: ${userCount}\n\n`;
         }
       }
       await tgRequest(currentToken, "sendMessage", {
@@ -142,7 +145,7 @@ export default async function handler(req, res) {
       for (const [id, bot] of Object.entries(bots)) {
         buttons.push([
           {
-            text: `❌ Delete @${bot.username || id}`,
+            text: `❌ Delete @${bot.info?.username || id}`,
             callback_data: `del_bot_${id}`,
           },
         ]);
@@ -156,26 +159,25 @@ export default async function handler(req, res) {
       });
     } else if (data.startsWith("del_bot_")) {
       const removeId = data.replace("del_bot_", "");
-      const bot = await dbGet(`bots/${removeId}`);
+      const bot = await dbGet(`bots/${removeId}/info`);
       if (bot && bot.token) {
-        // Webhook remove
         await tgRequest(bot.token, "deleteWebhook");
       }
       await dbDelete(`bots/${removeId}`);
       await tgRequest(currentToken, "sendMessage", {
         chat_id: adminId,
-        text: `✅ বটটি ডাটাবেজ এবং ওয়েবহুক থেকে মুছে ফেলা হয়েছে!`,
+        text: `✅ বটটি সফলভাবে রিমুভ করা হয়েছে!`,
       });
       await sendAdminPanel(currentToken, adminId);
     } else if (data === "bc_single_select") {
       const bots = (await dbGet("bots")) || {};
       const buttons = [
-        [{ text: `📢 Main Bot (@AuraStarPayBot)`, callback_data: `bc_bot_${MAIN_BOT_TOKEN.split(":")[0]}` }]
+        [{ text: `📢 Main Bot (@AuraBuilderProBot)`, callback_data: `bc_bot_${MAIN_BOT_TOKEN.split(":")[0]}` }]
       ];
       for (const [id, bot] of Object.entries(bots)) {
         buttons.push([
           {
-            text: `📢 @${bot.username || id}`,
+            text: `📢 @${bot.info?.username || id}`,
             callback_data: `bc_bot_${id}`,
           },
         ]);
@@ -191,14 +193,14 @@ export default async function handler(req, res) {
       await dbSet(`admin_state`, { step: "WAITING_SINGLE_BC", targetBotId: targetId });
       await tgRequest(currentToken, "sendMessage", {
         chat_id: adminId,
-        text: `📝 বট ID: \`${targetId}\` এর জন্য ব্রডকাস্ট মেসেজটি লিখে পাঠান:\n\n(বাতিল করতে /cancel লিখুন)`,
+        text: `📝 বট ID: \`${targetId}\` এর ইউজারদের পাঠানোর জন্য মেসেজটি পাঠান:\n\n(বাতিল করতে /cancel লিখুন)`,
         parse_mode: "Markdown",
       });
     } else if (data === "bc_all") {
       await dbSet(`admin_state`, { step: "WAITING_ALL_BC" });
       await tgRequest(currentToken, "sendMessage", {
         chat_id: adminId,
-        text: "🌐 **অল বট ব্রডকাস্ট:**\nসবগুলো কানেক্টেড বটের ইউজারদের কাছে পাঠানোর জন্য মেসেজটি লিখে পাঠান:\n\n(বাতিল করতে /cancel লিখুন)",
+        text: "🌐 **অল বট ব্রডকাস্ট:**\nসবগুলো বটের সমস্ত ইউজারদের কাছে পাঠানোর জন্য মেসেজটি দিন:\n\n(বাতিল করতে /cancel লিখুন)",
         parse_mode: "Markdown",
       });
     }
@@ -206,7 +208,7 @@ export default async function handler(req, res) {
     return res.status(200).send("OK");
   }
 
-  // ---------------- Handle Messages ----------------
+  // ---------------- Message Handling ----------------
   const message = update.message;
   if (!message) return res.status(200).send("No message");
 
@@ -214,7 +216,7 @@ export default async function handler(req, res) {
   const userId = message.from.id;
   const text = message.text || "";
 
-  // ১. প্রতি বটের আলাদা ফোল্ডারে ইউজার সেভ করা (/bots/<currentBotId>/users/<userId>)
+  // Firebase-এ প্রতি বটের ফোল্ডারে ইউজার সংরক্ষণ
   await dbSet(`bots/${currentBotId}/users/${userId}`, {
     id: userId,
     first_name: message.from.first_name || "",
@@ -222,7 +224,7 @@ export default async function handler(req, res) {
     last_active: Date.now(),
   });
 
-  // ২. যদি সুপার এডমিন মেইন বটে কমান্ড দেয়
+  // সুপার এডমিন চেক (মেইন বটে)
   if (userId === SUPER_ADMIN && isMainBot) {
     if (text === "/start" || text === "/admin") {
       await sendAdminPanel(currentToken, chatId);
@@ -233,16 +235,15 @@ export default async function handler(req, res) {
       await dbDelete(`admin_state`);
       await tgRequest(currentToken, "sendMessage", {
         chat_id: chatId,
-        text: "❌ অপারেশন বাতিল করা হয়েছে।",
+        text: "❌ বাতিল করা হয়েছে।",
       });
       await sendAdminPanel(currentToken, chatId);
       return res.status(200).send("OK");
     }
 
-    // এডমিন ইনপুট হ্যান্ডলার (State Check)
     const adminState = await dbGet("admin_state");
     if (adminState && adminState.step) {
-      // বট যুক্ত করা
+      // বট এড করা
       if (adminState.step === "WAITING_BOT_TOKEN") {
         const inputToken = text.trim();
         const testBot = await tgRequest(inputToken, "getMe");
@@ -250,7 +251,7 @@ export default async function handler(req, res) {
         if (!testBot || !testBot.ok) {
           await tgRequest(currentToken, "sendMessage", {
             chat_id: chatId,
-            text: "❌ ভুল টোকেন! দয়া করে সঠিক Bot Token দিন অথবা /cancel লিখুন।",
+            text: "❌ ভুল টোকেন! সঠিক Token দিন অথবা /cancel লিখুন।",
           });
           return res.status(200).send("OK");
         }
@@ -259,7 +260,6 @@ export default async function handler(req, res) {
         const newBotWebhook = `${baseUrl}?token=${inputToken}`;
         await tgRequest(inputToken, "setWebhook", { url: newBotWebhook });
 
-        // Firebase-এ সংরক্ষণ
         await dbSet(`bots/${newBot.id}/info`, {
           id: newBot.id,
           username: newBot.username,
@@ -271,14 +271,14 @@ export default async function handler(req, res) {
         await dbDelete("admin_state");
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `🎉 সফল হয়েছে!\nবট: @${newBot.username}\nID: \`${newBot.id}\`\nওয়েবহুক অটোমেটিক সেট হয়ে কানেক্ট হয়ে গেছে।`,
+          text: `🎉 সফলভাবে কানেক্ট হয়েছে!\nবট: @${newBot.username}\nID: \`${newBot.id}\``,
           parse_mode: "Markdown",
         });
         await sendAdminPanel(currentToken, chatId);
         return res.status(200).send("OK");
       }
 
-      // সিঙ্গেল বট ব্রডকাস্ট
+      // সিঙ্গেল ব্রডকাস্ট
       if (adminState.step === "WAITING_SINGLE_BC") {
         const targetBotId = adminState.targetBotId;
         let targetToken = currentToken;
@@ -295,25 +295,25 @@ export default async function handler(req, res) {
 
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `⏳ ব্রডকাস্ট শুরু হয়েছে মোট ${userIds.length} জন ইউজারের কাছে...`,
+          text: `⏳ ব্রডকাস্ট পাঠানো শুরু হয়েছে মোট ${userIds.length} জন ইউজারের কাছে...`,
         });
 
         let success = 0;
         let fail = 0;
         for (const uId of userIds) {
-          const res = await tgRequest(targetToken, "copyMessage", {
+          const r = await tgRequest(targetToken, "copyMessage", {
             chat_id: uId,
             from_chat_id: chatId,
             message_id: message.message_id,
           });
-          if (res && res.ok) success++;
+          if (r && r.ok) success++;
           else fail++;
         }
 
         await dbDelete("admin_state");
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `✅ ব্রডকাস্ট সম্পন্ন!\nসফল: ${success}\nব্যর্থ: ${fail}`,
+          text: `✅ ব্রডকাস্ট শেষ!\nসফল: ${success}\nব্যর্থ: ${fail}`,
         });
         return res.status(200).send("OK");
       }
@@ -321,7 +321,6 @@ export default async function handler(req, res) {
       // অল বট ব্রডকাস্ট
       if (adminState.step === "WAITING_ALL_BC") {
         const allBots = (await dbGet("bots")) || {};
-        // Main Bot সহ সমস্ত বটের তালিকা
         const botList = [{ id: currentBotId, token: MAIN_BOT_TOKEN }];
         for (const [bId, bData] of Object.entries(allBots)) {
           if (bData.info && bData.info.token && bId !== currentBotId) {
@@ -340,12 +339,12 @@ export default async function handler(req, res) {
         for (const b of botList) {
           const users = (await dbGet(`bots/${b.id}/users`)) || {};
           for (const uId of Object.keys(users)) {
-            const res = await tgRequest(b.token, "copyMessage", {
+            const r = await tgRequest(b.token, "copyMessage", {
               chat_id: uId,
               from_chat_id: chatId,
               message_id: message.message_id,
             });
-            if (res && res.ok) totalSuccess++;
+            if (r && r.ok) totalSuccess++;
             else totalFail++;
           }
         }
@@ -353,14 +352,14 @@ export default async function handler(req, res) {
         await dbDelete("admin_state");
         await tgRequest(currentToken, "sendMessage", {
           chat_id: chatId,
-          text: `🎉 অল বট ব্রডকাস্ট সম্পন্ন!\nমোট সফল: ${totalSuccess}\nমোট ব্যর্থ: ${totalFail}`,
+          text: `🎉 অল বট ব্রডকাস্ট সম্পন্ন!\nমোট সফল: ${totalSuccess}\nব্যর্থ: ${totalFail}`,
         });
         return res.status(200).send("OK");
       }
     }
   }
 
-  // ৩. সাধারণ ইউজারদের জন্য নির্ধারিত মেসেজ ও বাটন
+  // সাধারণ ইউজারদের জন্য নির্ধারিত রেসপন্স
   await tgRequest(currentToken, "sendMessage", {
     chat_id: chatId,
     text: defaultOffText,
@@ -370,12 +369,13 @@ export default async function handler(req, res) {
   return res.status(200).send("OK");
 }
 
-// Helper: এডমিন প্যানেল মেনু
-async function sendAdminPanel(token, chatId, messageId = null) {
-  const panelText =
-    `👑 **সুপার এডমিন কন্ট্রোল প্যানেল**\n\n` +
-    `বট ম্যানেজ এবং ব্রডকাস্ট করার অপশনগুলো নিচে দেওয়া হলো:`;
+// Routes
+app.post("/api", handleTelegramUpdate);
+app.post("/", handleTelegramUpdate);
 
+// প্যানেল মেসেজ
+async function sendAdminPanel(token, chatId, messageId = null) {
+  const panelText = `👑 **সুপার এডমিন কন্ট্রোল প্যানেল (@AuraBuilderProBot)**\n\nনিচের অপশন থেকে সিলেক্ট করুন:`;
   const panelKeyboard = {
     inline_keyboard: [
       [
@@ -383,9 +383,7 @@ async function sendAdminPanel(token, chatId, messageId = null) {
         { text: "➖ Remove Bot", callback_data: "remove_bot_list" },
       ],
       [{ text: "📋 Bot List & Stats", callback_data: "list_bots" }],
-      [
-        { text: "📢 Single Bot Broadcast", callback_data: "bc_single_select" },
-      ],
+      [{ text: "📢 Single Bot Broadcast", callback_data: "bc_single_select" }],
       [{ text: "🌐 All Bots Broadcast", callback_data: "bc_all" }],
     ],
   };
@@ -407,3 +405,9 @@ async function sendAdminPanel(token, chatId, messageId = null) {
     });
   }
 }
+
+// Render-এর দেওয়া পোর্টে সার্ভার চালু করা
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
