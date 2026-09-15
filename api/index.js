@@ -1,6 +1,6 @@
 /**
  * 𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍 (@AuraLeaveBanBot)
- * Telegram Channel Leave -> Auto Ban Bot
+ * Telegram Channel Leave -> Auto Ban Bot (বাংলা সংস্করণ)
  * Deployable on Render with Node.js & Firebase Realtime Database
  */
 
@@ -18,7 +18,7 @@ const {
 } = require('firebase/database');
 
 // ==========================================
-// CONFIGURATION & CONSTANTS
+// কনফিগারেশন এবং কনস্ট্যান্ট
 // ==========================================
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -30,7 +30,7 @@ const MAIN_ADMIN_ID = 8045367594;
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// Firebase Client Configuration
+// ফায়ারবেস ক্লায়েন্ট কনফিগারেশন
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY || "AIzaSyBq8MGSAiYUmgRYzg0APJlzbwuVnp-y66U",
   authDomain: process.env.FIREBASE_AUTH_DOMAIN || "bkas-45e17.firebaseapp.com",
@@ -42,19 +42,17 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-E971R1F9K9"
 };
 
-// Initialize Firebase Realtime Database
+// ফায়ারবেস ইনিশিয়ালাইজেশন
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getDatabase(firebaseApp);
-console.log('[INFO] Firebase Realtime Database connected.');
+console.log('[INFO] Firebase Realtime Database সংযুক্ত হয়েছে।');
 
-// In-Memory User State Map (per-user independent session flow)
+// ইউজার স্টেট মেশিন
 const userStates = new Map();
-
-// Cached Bot ID
 let BOT_USER_ID = null;
 
 // ==========================================
-// TELEGRAM API CLIENT HELPERS
+// টেলিগ্রাম এপিআই হেল্পার ফাংশনসমূহ
 // ==========================================
 async function callTelegram(method, payload = {}) {
   const url = `${TELEGRAM_API_URL}/${method}`;
@@ -69,7 +67,7 @@ async function callTelegram(method, payload = {}) {
     if (!data.ok) {
       if (data.error_code === 429) {
         const retryAfter = (data.parameters && data.parameters.retry_after) || 1;
-        console.warn(`[WARN] 429 Rate limited. Waiting ${retryAfter}s on ${method}...`);
+        console.warn(`[WARN] 429 Rate limit. Waiting ${retryAfter}s on ${method}...`);
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
         return callTelegram(method, payload);
       }
@@ -149,7 +147,7 @@ async function copyMessage(chatId, fromChatId, messageId) {
 }
 
 // ==========================================
-// FIREBASE DATABASE LAYER
+// ডাটাবেস অপারেশনসমূহ
 // ==========================================
 async function saveUser(from) {
   if (!from || !from.id) return;
@@ -165,7 +163,7 @@ async function saveUser(from) {
         firstName: from.first_name || '',
         lastName: from.last_name || '',
         username: from.username ? `@${from.username}` : '',
-        languageCode: from.language_code || 'en',
+        languageCode: from.language_code || 'bn',
         createdAt: now,
         lastActiveAt: now
       });
@@ -266,7 +264,7 @@ async function saveBanRecord(channelId, user) {
     firstName: user.first_name || 'Member',
     username: user.username ? `@${user.username}` : '',
     bannedAt: now,
-    reason: 'Left the channel',
+    reason: 'চ্যানেল থেকে লিভ নিয়েছে',
     status: 'banned'
   });
 
@@ -300,15 +298,15 @@ async function logEvent(type, payload) {
 }
 
 // ==========================================
-// UI KEYBOARDS & NAVIGATION
+// কীবোর্ড এবং ইউজার ইন্টারফেস (বাংলা)
 // ==========================================
 function getMainMenuKeyboard(userId) {
   const keyboard = [
-    [{ text: '➕ Add Channel' }, { text: '📂 My Channels' }],
-    [{ text: '📖 How It Works' }, { text: '⚙️ Settings' }]
+    [{ text: '➕ চ্যানেল যোগ করুন' }, { text: '📂 আমার চ্যানেল' }],
+    [{ text: '📖 কিভাবে কাজ করে' }]
   ];
   if (Number(userId) === MAIN_ADMIN_ID) {
-    keyboard.push([{ text: '👑 Admin Panel' }]);
+    keyboard.push([{ text: '👑 এডমিন প্যানেল' }]);
   }
   return {
     keyboard: keyboard,
@@ -319,7 +317,7 @@ function getMainMenuKeyboard(userId) {
 
 function getCancelKeyboard() {
   return {
-    keyboard: [[{ text: '❌ Cancel' }]],
+    keyboard: [[{ text: '❌ বাতিল করুন' }]],
     resize_keyboard: true
   };
 }
@@ -328,25 +326,25 @@ function getAdminPanelKeyboard() {
   return {
     inline_keyboard: [
       [
-        { text: '👥 Users', callback_data: 'admin_users' },
-        { text: '📢 Channels', callback_data: 'admin_channels' }
+        { text: '👥 ইউজার তালিকা', callback_data: 'admin_users' },
+        { text: '📢 চ্যানেলসমূহ', callback_data: 'admin_channels' }
       ],
       [
-        { text: '📊 Statistics', callback_data: 'admin_stats' },
-        { text: '📣 Broadcast', callback_data: 'admin_broadcast' }
+        { text: '📊 পরিসংখ্যান', callback_data: 'admin_stats' },
+        { text: '📣 ব্রডকাস্ট (মেসেজ পাঠান)', callback_data: 'admin_broadcast' }
       ],
       [
-        { text: '🔍 User Search', callback_data: 'admin_user_search' }
+        { text: '🔍 ইউজার খুঁজুন', callback_data: 'admin_user_search' }
       ],
       [
-        { text: '🔙 Main Menu', callback_data: 'admin_close' }
+        { text: '🔙 বন্ধ করুন', callback_data: 'admin_close' }
       ]
     ]
   };
 }
 
 // ==========================================
-// PERMISSION CHECKS
+// পারমিশন যাচাইকরণ
 // ==========================================
 async function checkBotPermissions(channelId) {
   const member = await getChatMember(channelId, BOT_USER_ID);
@@ -365,20 +363,20 @@ async function verifyChannelOwnerOrAdmin(channelId, userId) {
 }
 
 // ==========================================
-// COMMAND & ACTION HANDLERS
+// কমান্ড ও মেনু হ্যান্ডলারসমূহ (বাংলা)
 // ==========================================
 async function handleStart(chatId, from) {
   userStates.delete(from.id);
   await saveUser(from);
 
   const text =
-    `🔥 <b>Welcome to 𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍</b>\n\n` +
-    `🤖 <b>Your channel protection assistant!</b>\n\n` +
-    `This bot automatically bans users who leave your protected Telegram channel.\n\n` +
-    `🚫 <b>Leave the channel</b>\n` +
-    `➡️ <b>Automatically Ban</b>\n\n` +
-    `🔐 <i>Add your channel and make the bot an administrator to activate protection.</i>\n\n` +
-    `Use the buttons below 👇`;
+    `🔥 <b>স্বাগতম 𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍 বোটে!</b>\n\n` +
+    `🤖 <b>আপনার চ্যানেল সুরক্ষা সহকারী!</b>\n\n` +
+    `এই বটটি আপনার টেলিগ্রাম চ্যানেল থেকে কোনো সদস্য বের হয়ে গেলে (Leave নিলে) সাথে সাথে তাকে স্বয়ংক্রিয়ভাবে ব্যান (Auto Ban) করে দেয়।\n\n` +
+    `🚫 <b>চ্যানেল লিভ নিলেই</b>\n` +
+    `➡️ <b>অটোমেটিক ব্যান</b>\n\n` +
+    `🔐 <i>সুরক্ষা সক্রিয় করতে আপনার চ্যানেলটি যুক্ত করুন এবং বটকে অ্যাডমিন বানান।</i>\n\n` +
+    `নিচের বাটনগুলো ব্যবহার করুন 👇`;
 
   await sendMessage(chatId, text, {
     reply_markup: getMainMenuKeyboard(from.id)
@@ -387,74 +385,38 @@ async function handleStart(chatId, from) {
 
 async function handleHowItWorks(chatId, from) {
   const text =
-    `📖 <b>How It Works</b>\n\n` +
-    `1️⃣ Add the bot to your channel.\n` +
-    `2️⃣ Make the bot an administrator.\n` +
-    `3️⃣ Give permission to ban/manage members.\n` +
-    `4️⃣ Connect the channel with the bot.\n` +
-    `5️⃣ Turn Protection ON.\n\n` +
-    `<b>Now:</b>\n` +
-    `👤 User joins\n` +
-    `➡️ Everything normal\n\n` +
-    `👤 User leaves\n` +
-    `➡️ Bot detects the leave\n` +
-    `➡️ Bot automatically bans the user\n\n` +
-    `🔐 <i>The user cannot rejoin until unbanned.</i>`;
+    `📖 <b>কিভাবে কাজ করে?</b>\n\n` +
+    `1️⃣ বটটিকে আপনার চ্যানেলে অ্যাড করুন।\n` +
+    `2️⃣ বটকে অ্যাডমিনিস্ট্রেটর (Admin) বানান।\n` +
+    `3️⃣ Ban Users এবং Manage Members পারমিশন দিন।\n` +
+    `4️⃣ বটের সাথে চ্যানেলটি যুক্ত (Connect) করুন।\n` +
+    `5️⃣ Protection চালু করুন।\n\n` +
+    `<b>এরপর:</b>\n` +
+    `👤 কেউ জয়েন করলে\n` +
+    `➡️ সবকিছু স্বাভাবিক থাকবে\n\n` +
+    `👤 কেউ লিভ (Leave) নিলে\n` +
+    `➡️ বট সাথে সাথে তা শনাক্ত করবে\n` +
+    `➡️ বট স্বয়ংক্রিয়ভাবে তাকে চ্যানেল থেকে ব্যান করে দেবে\n\n` +
+    `🔐 <i>আনব্যান না করা পর্যন্ত সে আর চ্যানেলে জয়েন হতে পারবে না।</i>`;
 
   await sendMessage(chatId, text, {
     reply_markup: getMainMenuKeyboard(from.id)
   });
 }
 
-async function handleSettingsMenu(chatId, from) {
-  const inlineKeyboard = {
-    inline_keyboard: [
-      [{ text: '👤 My Account', callback_data: 'settings_account' }],
-      [{ text: '📂 My Channels', callback_data: 'settings_channels' }],
-      [{ text: '📖 How It Works', callback_data: 'settings_how' }]
-    ]
-  };
-
-  const text =
-    `⚙️ <b>Settings</b>\n\n` +
-    `Configure your bot preferences and account settings:`;
-
-  await sendMessage(chatId, text, { reply_markup: inlineKeyboard });
-}
-
-async function handleMyAccount(chatId, from, messageId = null) {
-  const channels = await getUserChannels(from.id);
-  const text =
-    `👤 <b>My Account</b>\n\n` +
-    `<b>Name:</b> ${from.first_name || 'User'}\n` +
-    `<b>Username:</b> ${from.username ? `@${from.username}` : 'None'}\n` +
-    `<b>Telegram ID:</b> <code>${from.id}</code>\n` +
-    `<b>Connected Channels:</b> ${channels.length}`;
-
-  const keyboard = {
-    inline_keyboard: [[{ text: '🔙 Back', callback_data: 'settings_main' }]]
-  };
-
-  if (messageId) {
-    await editMessage(chatId, messageId, text, { reply_markup: keyboard });
-  } else {
-    await sendMessage(chatId, text, { reply_markup: keyboard });
-  }
-}
-
 async function handleAddChannelPrompt(chatId, from) {
   userStates.set(from.id, { step: 'waiting_channel_input' });
 
   const text =
-    `➕ <b>Add New Channel</b>\n\n` +
-    `First, add this bot (<b>@AuraLeaveBanBot</b>) as an <b>ADMINISTRATOR</b> to your Telegram channel.\n\n` +
-    `The bot needs permission to:\n` +
+    `➕ <b>নতুন চ্যানেল যোগ করুন</b>\n\n` +
+    `প্রথমে এই বটকে (<b>@AuraLeaveBanBot</b>) আপনার চ্যানেলে <b>ADMINISTRATOR</b> হিসেবে যোগ করুন।\n\n` +
+    `বটের যেসব পারমিশন প্রয়োজন:\n` +
     `✅ <b>Ban Users</b>\n` +
     `✅ <b>Manage Members</b>\n\n` +
-    `After adding the bot as administrator, send me your channel username or channel ID.\n\n` +
-    `Example:\n` +
+    `বটকে অ্যাডমিন করার পর, আপনার চ্যানেলের ইউজারনেম (@username) বা চ্যানেল আইডি পাঠান।\n\n` +
+    `উদাহরণ:\n` +
     `<code>@MyChannel</code>\n` +
-    `or\n` +
+    `অথবা\n` +
     `<code>-1001234567890</code>`;
 
   await sendMessage(chatId, text, { reply_markup: getCancelKeyboard() });
@@ -469,55 +431,55 @@ async function handleChannelInput(chatId, from, rawInput) {
   const chat = await getChat(formattedTarget);
   if (!chat) {
     const text =
-      `❌ <b>I couldn't find this channel.</b>\n\n` +
-      `Please make sure the username/ID is correct and try again.`;
+      `❌ <b>চ্যানেলটি খুঁজে পাওয়া যায়নি!</b>\n\n` +
+      `অনুগ্রহ করে নিশ্চিত করুন ইউজারনেম বা আইডি সঠিক আছে এবং আবার চেষ্টা করুন।`;
     await sendMessage(chatId, text, { reply_markup: getCancelKeyboard() });
     return;
   }
 
   if (chat.type !== 'channel') {
     const text =
-      `❌ <b>Invalid Chat Type</b>\n\n` +
-      `Please send a Telegram channel. Groups or supergroups are not supported.`;
+      `❌ <b>ভুল চ্যাট টাইপ!</b>\n\n` +
+      `দয়া করে একটি টেলিগ্রাম চ্যানেল পাঠান। গ্রুপ বা সুপারগ্রুপ গ্রহণযোগ্য নয়।`;
     await sendMessage(chatId, text, { reply_markup: getCancelKeyboard() });
     return;
   }
 
   const channelId = String(chat.id);
 
-  // Check duplicate channel registration
+  // ডুপ্লিকেট চ্যানেল চেক
   const existingChannel = await getChannel(channelId);
   if (existingChannel) {
     userStates.delete(from.id);
     if (String(existingChannel.ownerId) === String(from.id)) {
       await sendMessage(
         chatId,
-        `ℹ️ <b>Channel Already Added</b>\n\nThis channel is already connected to your account.`,
+        `ℹ️ <b>চ্যানেলটি ইতিমধ্যে যুক্ত রয়েছে!</b>\n\nএই চ্যানেলটি আগেই আপনার একাউন্টে সংযুক্ত করা হয়েছে।`,
         { reply_markup: getMainMenuKeyboard(from.id) }
       );
     } else {
       await sendMessage(
         chatId,
-        `⚠️ <b>Channel Already Protected</b>\n\nThis channel is already connected to another account.\nOnly the registered owner can manage it.`,
+        `⚠️ <b>চ্যানেলটি ইতিমধ্যে সুরক্ষিত!</b>\n\nএই চ্যানেলটি অন্য একটি একাউন্টে যুক্ত রয়েছে। কেবল মূল মালিক এটি পরিচালনা করতে পারবেন।`,
         { reply_markup: getMainMenuKeyboard(from.id) }
       );
     }
     return;
   }
 
-  // Validate requester is channel owner/admin
+  // ইউজার চ্যানেলের অ্যাডমিন কিনা চেক
   const isSenderPrivileged = await verifyChannelOwnerOrAdmin(channelId, from.id);
   if (!isSenderPrivileged && Number(from.id) !== MAIN_ADMIN_ID) {
     userStates.delete(from.id);
     await sendMessage(
       chatId,
-      `⚠️ <b>Unauthorized</b>\n\nYou must be the Creator or an Administrator of this channel to register it with the bot.`,
+      `⚠️ <b>অননুমোদিত!</b>\n\nবটে চ্যানেল যুক্ত করার জন্য আপনাকে সেই চ্যানেলের ক্রিয়েটর বা অ্যাডমিন হতে হবে।`,
       { reply_markup: getMainMenuKeyboard(from.id) }
     );
     return;
   }
 
-  // Check bot administrator and ban status
+  // বট অ্যাডমিন এবং ব্যান পারমিশন চেক
   const botPerms = await checkBotPermissions(channelId);
   if (!botPerms.isBotAdmin || !botPerms.canBan) {
     userStates.set(from.id, {
@@ -528,17 +490,17 @@ async function handleChannelInput(chatId, from, rawInput) {
     });
 
     const text =
-      `⚠️ <b>Bot Administrator Required</b>\n\n` +
-      `I found your channel, but I'm not an administrator there.\n\n` +
-      `Please add me as an administrator with permission to:\n` +
+      `⚠️ <b>বট অ্যাডমিন পারমিশন প্রয়োজন</b>\n\n` +
+      `চ্যানেল পাওয়া গেছে, কিন্তু আমি সেখানে অ্যাডমিনিস্ট্রেটর নই।\n\n` +
+      `অনুগ্রহ করে আমাকে অ্যাডমিন বানিয়ে নিচের পারমিশনগুলো দিন:\n` +
       `✅ <b>Ban Users</b>\n` +
       `✅ <b>Manage Members</b>\n\n` +
-      `Then press: <b>🔄 Check Again</b>`;
+      `এরপর চাপুন: <b>🔄 পুনরায় যাচাই করুন</b>`;
 
     const inlineKeyboard = {
       inline_keyboard: [
-        [{ text: '🔄 Check Again', callback_data: `recheck_${channelId}` }],
-        [{ text: '❌ Cancel', callback_data: 'cancel_action' }]
+        [{ text: '🔄 পুনরায় যাচাই করুন', callback_data: `recheck_${channelId}` }],
+        [{ text: '❌ বাতিল করুন', callback_data: 'cancel_action' }]
       ]
     };
 
@@ -546,7 +508,7 @@ async function handleChannelInput(chatId, from, rawInput) {
     return;
   }
 
-  // Register channel
+  // চ্যানেল সেভ করা
   await registerChannel({
     channelId,
     ownerId: from.id,
@@ -559,69 +521,69 @@ async function handleChannelInput(chatId, from, rawInput) {
   userStates.delete(from.id);
 
   const text =
-    `✅ <b>Channel Connected Successfully!</b>\n\n` +
-    `📢 <b>Channel:</b>\n${chat.username ? `@${chat.username}` : chat.title}\n\n` +
-    `🆔 <b>Channel ID:</b>\n<code>${channelId}</code>\n\n` +
-    `🤖 <b>Bot Status:</b>\n✅ Administrator\n\n` +
-    `🔨 <b>Ban Permission:</b>\n✅ Enabled\n\n` +
-    `🛡 <b>Protection:</b>\n🟢 ACTIVE\n\n` +
-    `<i>From now on, users who leave this channel will automatically be banned.</i>`;
+    `✅ <b>চ্যানেল সফলভাবে যুক্ত হয়েছে!</b>\n\n` +
+    `📢 <b>চ্যানেল:</b>\n${chat.username ? `@${chat.username}` : chat.title}\n\n` +
+    `🆔 <b>চ্যানেল আইডি:</b>\n<code>${channelId}</code>\n\n` +
+    `🤖 <b>বট স্ট্যাটাস:</b>\n✅ অ্যাডমিনিস্ট্রেটর\n\n` +
+    `🔨 <b>ব্যান পারমিশন:</b>\n✅ চালু রয়েছে\n\n` +
+    `🛡 <b>সুরক্ষা (Protection):</b>\n🟢 সক্রিয় (ACTIVE)\n\n` +
+    `<i>এখন থেকে এই চ্যানেল থেকে কেউ লিভ নিলে সাথে সাথে ব্যান হয়ে যাবে।</i>`;
 
   const inlineKeyboard = {
     inline_keyboard: [
-      [{ text: '📂 My Channels', callback_data: 'nav_my_channels' }],
-      [{ text: '⚙️ Channel Settings', callback_data: `manage_${channelId}` }]
+      [{ text: '📂 আমার চ্যানেলসমূহ', callback_data: 'nav_my_channels' }],
+      [{ text: '⚙️ চ্যানেল সেটিংস', callback_data: `manage_${channelId}` }]
     ]
   };
 
   await sendMessage(chatId, text, { reply_markup: inlineKeyboard });
-  await sendMessage(chatId, `👇 Main Navigation:`, {
+  await sendMessage(chatId, `👇 মূল মেনু:`, {
     reply_markup: getMainMenuKeyboard(from.id)
   });
 }
 
 // ==========================================
-// MY CHANNELS & CHANNEL MANAGEMENT
+// চ্যানেল ম্যানেজমেন্ট
 // ==========================================
 async function handleMyChannels(chatId, from, messageId = null) {
   const channels = await getUserChannels(from.id);
 
   if (channels.length === 0) {
     const text =
-      `📂 <b>Your Channels</b>\n\n` +
-      `You have not added any channels yet.\n` +
-      `Press <b>➕ Add Channel</b> to get started!`;
+      `📂 <b>আপনার চ্যানেলসমূহ</b>\n\n` +
+      `আপনি এখনো কোনো চ্যানেল যোগ করেননি।\n` +
+      `চ্যানেল যোগ করতে <b>➕ চ্যানেল যোগ করুন</b> বাটনে চাপুন!`;
 
     if (messageId) {
       await editMessage(chatId, messageId, text, {
         reply_markup: {
-          inline_keyboard: [[{ text: '➕ Add Channel', callback_data: 'nav_add_channel' }]]
+          inline_keyboard: [[{ text: '➕ চ্যানেল যোগ করুন', callback_data: 'nav_add_channel' }]]
         }
       });
     } else {
       await sendMessage(chatId, text, {
         reply_markup: {
-          inline_keyboard: [[{ text: '➕ Add Channel', callback_data: 'nav_add_channel' }]]
+          inline_keyboard: [[{ text: '➕ চ্যানেল যোগ করুন', callback_data: 'nav_add_channel' }]]
         }
       });
     }
     return;
   }
 
-  let text = `📂 <b>Your Channels</b>\n\n`;
+  let text = `📂 <b>আপনার চ্যানেলসমূহ</b>\n\n`;
   const inlineKeyboard = [];
 
   for (let i = 0; i < channels.length; i++) {
     const ch = channels[i];
     let statusIcon = '🟢';
-    let statusText = 'Protection Active';
+    let statusText = 'সুরক্ষা সক্রিয়';
 
     if (ch.botStatus === 'admin_removed') {
       statusIcon = '🟡';
-      statusText = 'Bot Admin Removed';
+      statusText = 'বট অ্যাডমিন সরানো হয়েছে';
     } else if (!ch.protectionEnabled) {
       statusIcon = '🔴';
-      statusText = 'Protection Disabled';
+      statusText = 'সুরক্ষা বন্ধ';
     }
 
     const titleDisplay = ch.username || ch.title || ch.channelId;
@@ -629,7 +591,7 @@ async function handleMyChannels(chatId, from, messageId = null) {
 
     inlineKeyboard.push([
       {
-        text: `📢 ${titleDisplay} ⚙️ Manage`,
+        text: `📢 ${titleDisplay} ⚙️ পরিচালনা`,
         callback_data: `manage_${ch.channelId}`
       }
     ]);
@@ -649,17 +611,15 @@ async function handleMyChannels(chatId, from, messageId = null) {
 async function handleManageChannel(chatId, messageId, from, channelId) {
   const channel = await getChannel(channelId);
   if (!channel) {
-    await editMessage(chatId, messageId, `❌ Channel record not found.`);
+    await editMessage(chatId, messageId, `❌ চ্যানেল রেকর্ড পাওয়া যায়নি।`);
     return;
   }
 
-  // Security authorization verification
   if (String(channel.ownerId) !== String(from.id) && Number(from.id) !== MAIN_ADMIN_ID) {
-    await answerCallbackQuery(messageId, 'Unauthorized access.', true);
+    await answerCallbackQuery(messageId, 'অননুমোদিত এক্সেস!', true);
     return;
   }
 
-  // Live status verification
   const botPerms = await checkBotPermissions(channelId);
   const currentBotStatus = botPerms.isBotAdmin ? 'administrator' : 'admin_removed';
   if (currentBotStatus !== channel.botStatus) {
@@ -672,31 +632,31 @@ async function handleManageChannel(chatId, messageId, from, channelId) {
   }
 
   const isProtectionActive = channel.protectionEnabled && channel.botStatus === 'administrator';
-  const botStatusText = channel.botStatus === 'administrator' ? '✅ Administrator' : '⚠️ Admin Removed';
-  const protectionText = isProtectionActive ? '🟢 ACTIVE' : '🔴 DISABLED';
+  const botStatusText = channel.botStatus === 'administrator' ? '✅ অ্যাডমিনিস্ট্রেটর' : '⚠️ অ্যাডমিন অপসারিত';
+  const protectionText = isProtectionActive ? '🟢 সক্রিয় (ACTIVE)' : '🔴 বন্ধ (DISABLED)';
 
   const text =
-    `📢 <b>Channel:</b>\n${channel.username || channel.title}\n\n` +
-    `🆔 <b>ID:</b>\n<code>${channelId}</code>\n\n` +
-    `🤖 <b>Bot:</b>\n${botStatusText}\n\n` +
-    `🛡 <b>Protection:</b>\n${protectionText}\n\n` +
-    `Choose an option:`;
+    `📢 <b>চ্যানেল:</b>\n${channel.username || channel.title}\n\n` +
+    `🆔 <b>আইডি:</b>\n<code>${channelId}</code>\n\n` +
+    `🤖 <b>বট:</b>\n${botStatusText}\n\n` +
+    `🛡 <b>সুরক্ষা:</b>\n${protectionText}\n\n` +
+    `একটি অপশন বেছে নিন:`;
 
   const keyboard = [
     [
       channel.protectionEnabled
-        ? { text: '🔴 Disable Protection', callback_data: `prot_off_${channelId}` }
-        : { text: '🟢 Enable Protection', callback_data: `prot_on_${channelId}` }
+        ? { text: '🔴 সুরক্ষা বন্ধ করুন', callback_data: `prot_off_${channelId}` }
+        : { text: '🟢 সুরক্ষা চালু করুন', callback_data: `prot_on_${channelId}` }
     ],
     [
-      { text: '🔔 Notification Settings', callback_data: `notif_${channelId}` },
-      { text: '👤 Banned Users', callback_data: `banned_${channelId}` }
+      { text: '🔔 নোটিফিকেশন সেটিংস', callback_data: `notif_${channelId}` },
+      { text: '👤 ব্যান হওয়া ইউজার', callback_data: `banned_${channelId}` }
     ],
     [
-      { text: '🔄 Check Bot Status', callback_data: `check_${channelId}` },
-      { text: '🗑 Remove Channel', callback_data: `delconf_${channelId}` }
+      { text: '🔄 বট স্ট্যাটাস যাচাই', callback_data: `check_${channelId}` },
+      { text: '🗑 চ্যানেল রিমুভ করুন', callback_data: `delconf_${channelId}` }
     ],
-    [{ text: '🔙 Back', callback_data: 'nav_my_channels' }]
+    [{ text: '🔙 ফিরে যান', callback_data: 'nav_my_channels' }]
   ];
 
   await editMessage(chatId, messageId, text, {
@@ -705,7 +665,7 @@ async function handleManageChannel(chatId, messageId, from, channelId) {
 }
 
 // ==========================================
-// NOTIFICATIONS & UNBAN MANAGEMENT
+// নোটিফিকেশন এবং আনব্যান
 // ==========================================
 async function handleNotificationSettings(chatId, messageId, from, channelId) {
   const channel = await getChannel(channelId);
@@ -714,21 +674,21 @@ async function handleNotificationSettings(chatId, messageId, from, channelId) {
   }
 
   const notifs = channel.notifications || { channel: true, owner: true };
-  const chText = notifs.channel ? '🟢 ON' : '🔴 OFF';
-  const owText = notifs.owner ? '🟢 ON' : '🔴 OFF';
+  const chText = notifs.channel ? '🟢 চালু' : '🔴 বন্ধ';
+  const owText = notifs.owner ? '🟢 চালু' : '🔴 বন্ধ';
 
   const text =
-    `🔔 <b>Notification Settings</b>\n\n` +
-    `📢 <b>Channel Alerts:</b> ${chText}\n` +
-    `👤 <b>Owner Alerts:</b> ${owText}\n\n` +
-    `Toggle notification destinations below:`;
+    `🔔 <b>নোটিফিকেশন সেটিংস</b>\n\n` +
+    `📢 <b>চ্যানেলে মেসেজ:</b> ${chText}\n` +
+    `👤 <b>মালিককে ইনবক্সে মেসেজ:</b> ${owText}\n\n` +
+    `নোটিফিকেশন অন/অফ করতে নিচের বাটনে চাপুন:`;
 
   const keyboard = [
     [
-      { text: `📢 Channel: ${chText}`, callback_data: `togglenotif_ch_${channelId}` },
-      { text: `👤 Owner: ${owText}`, callback_data: `togglenotif_ow_${channelId}` }
+      { text: `📢 চ্যানেলে: ${chText}`, callback_data: `togglenotif_ch_${channelId}` },
+      { text: `👤 মালিককে: ${owText}`, callback_data: `togglenotif_ow_${channelId}` }
     ],
-    [{ text: '🔙 Back', callback_data: `manage_${channelId}` }]
+    [{ text: '🔙 ব্যাক', callback_data: `manage_${channelId}` }]
   ];
 
   await editMessage(chatId, messageId, text, {
@@ -747,16 +707,16 @@ async function handleBannedUsersList(chatId, messageId, from, channelId) {
 
   if (userKeys.length === 0) {
     const text =
-      `🔨 <b>Banned Users</b>\n\n` +
-      `No users have been banned in this channel yet.`;
-    const keyboard = [[{ text: '🔙 Back', callback_data: `manage_${channelId}` }]];
+      `🔨 <b>ব্যান হওয়া ইউজারদের তালিকা</b>\n\n` +
+      `এই চ্যানেলে এখনো কোনো ইউজারকে ব্যান করা হয়নি।`;
+    const keyboard = [[{ text: '🔙 ব্যাক', callback_data: `manage_${channelId}` }]];
     await editMessage(chatId, messageId, text, {
       reply_markup: { inline_keyboard: keyboard }
     });
     return;
   }
 
-  let text = `🔨 <b>Banned Users (${userKeys.length})</b>\n\n`;
+  let text = `🔨 <b>ব্যান হওয়া ইউজারদের তালিকা (${userKeys.length})</b>\n\n`;
   const keyboard = [];
 
   const listToDisplay = userKeys.slice(0, 8);
@@ -767,13 +727,13 @@ async function handleBannedUsersList(chatId, messageId, from, channelId) {
     text += `👤 <b>${name}</b>${tag}\n🆔 <code>${uid}</code>\n\n`;
     keyboard.push([
       {
-        text: `♻️ Unban ${name}`,
+        text: `♻️ আনব্যান করুন (${name})`,
         callback_data: `unban_${channelId}_${uid}`
       }
     ]);
   }
 
-  keyboard.push([{ text: '🔙 Back', callback_data: `manage_${channelId}` }]);
+  keyboard.push([{ text: '🔙 ব্যাক', callback_data: `manage_${channelId}` }]);
 
   await editMessage(chatId, messageId, text, {
     reply_markup: { inline_keyboard: keyboard }
@@ -781,13 +741,13 @@ async function handleBannedUsersList(chatId, messageId, from, channelId) {
 }
 
 // ==========================================
-// ADMIN PANEL (USER ID: 8045367594 ONLY)
+// এডমিন প্যানেল (MAIN_ADMIN_ID: 8045367594)
 // ==========================================
 async function showAdminPanel(chatId, messageId = null) {
   const text =
-    `👑 <b>Admin Panel</b>\n\n` +
-    `Welcome to <b>𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍</b> System Administration.\n` +
-    `Select a module below:`;
+    `👑 <b>এডমিন প্যানেল</b>\n\n` +
+    `স্বাগতম এডমিন!\n` +
+    `নিচের যেকোনো একটি অপশন বেছে নিন:`;
 
   if (messageId) {
     await editMessage(chatId, messageId, text, { reply_markup: getAdminPanelKeyboard() });
@@ -822,15 +782,15 @@ async function showAdminUsers(chatId, messageId) {
   }
 
   const text =
-    `👥 <b>Users & Channel Overview</b>\n\n` +
-    `<b>Total Users:</b> ${totalUsers}\n` +
-    `<b>Total Channels:</b> ${totalChannels}\n` +
-    `<b>Active Protected Channels:</b> ${activeCount}\n` +
-    `<b>Disabled Channels:</b> ${disabledCount}\n` +
-    `<b>Admin Removed Channels:</b> ${removedCount}`;
+    `👥 <b>ইউজার ও চ্যানেল পরিসংখ্যান</b>\n\n` +
+    `<b>মোট ইউজার:</b> ${totalUsers} জন\n` +
+    `<b>মোট চ্যানেল:</b> ${totalChannels} টি\n` +
+    `<b>সক্রিয় সুরক্ষিত চ্যানেল:</b> ${activeCount} টি\n` +
+    `<b>সুরক্ষা বন্ধ চ্যানেল:</b> ${disabledCount} টি\n` +
+    `<b>বট অ্যাডমিন সরানো হয়েছে:</b> ${removedCount} টি`;
 
   const keyboard = {
-    inline_keyboard: [[{ text: '🔙 Back', callback_data: 'admin_back' }]]
+    inline_keyboard: [[{ text: '🔙 ব্যাক', callback_data: 'admin_back' }]]
   };
 
   await editMessage(chatId, messageId, text, { reply_markup: keyboard });
@@ -839,9 +799,9 @@ async function showAdminUsers(chatId, messageId) {
 async function showAdminChannels(chatId, messageId) {
   const channelsSnap = await get(ref(db, 'channels'));
   if (!channelsSnap.exists()) {
-    await editMessage(chatId, messageId, `📢 No registered channels found.`, {
+    await editMessage(chatId, messageId, `📢 কোনো চ্যানেল পাওয়া যায়নি।`, {
       reply_markup: {
-        inline_keyboard: [[{ text: '🔙 Back', callback_data: 'admin_back' }]]
+        inline_keyboard: [[{ text: '🔙 ব্যাক', callback_data: 'admin_back' }]]
       }
     });
     return;
@@ -849,24 +809,24 @@ async function showAdminChannels(chatId, messageId) {
 
   const channels = channelsSnap.val();
   const keys = Object.keys(channels);
-  let text = `📢 <b>Registered Channels (${keys.length})</b>\n\n`;
+  let text = `📢 <b>যুক্ত হওয়া চ্যানেলসমূহ (${keys.length})</b>\n\n`;
 
   const displayKeys = keys.slice(0, 6);
   for (const k of displayKeys) {
     const ch = channels[k];
-    const status = ch.botStatus === 'administrator' ? 'Administrator' : 'Admin Removed';
-    const prot = ch.protectionEnabled ? 'Enabled' : 'Disabled';
+    const status = ch.botStatus === 'administrator' ? 'অ্যাডমিন' : 'অ্যাডমিন অপসারিত';
+    const prot = ch.protectionEnabled ? 'সক্রিয়' : 'বন্ধ';
 
     text +=
-      `📢 <b>Channel:</b> ${ch.username || ch.title}\n` +
-      `🆔 <b>ID:</b> <code>${ch.channelId}</code>\n` +
-      `👤 <b>Owner ID:</b> <code>${ch.ownerId}</code>\n` +
-      `🤖 <b>Bot Status:</b> ${status}\n` +
-      `🛡 <b>Protection:</b> ${prot}\n\n`;
+      `📢 <b>চ্যানেল:</b> ${ch.username || ch.title}\n` +
+      `🆔 <b>আইডি:</b> <code>${ch.channelId}</code>\n` +
+      `👤 <b>মালিকের আইডি:</b> <code>${ch.ownerId}</code>\n` +
+      `🤖 <b>বট স্ট্যাটাস:</b> ${status}\n` +
+      `🛡 <b>সুরক্ষা:</b> ${prot}\n\n`;
   }
 
   const keyboard = {
-    inline_keyboard: [[{ text: '🔙 Back', callback_data: 'admin_back' }]]
+    inline_keyboard: [[{ text: '🔙 ব্যাক', callback_data: 'admin_back' }]]
   };
 
   await editMessage(chatId, messageId, text, { reply_markup: keyboard });
@@ -901,17 +861,17 @@ async function showAdminStats(chatId, messageId) {
   }
 
   const text =
-    `📊 <b>System Statistics</b>\n\n` +
-    `👥 <b>Total Users:</b> ${usersCount}\n` +
-    `📢 <b>Total Channels:</b> ${channels.length}\n` +
-    `🟢 <b>Protected Channels:</b> ${protectedCount}\n` +
-    `⏸ <b>Disabled Channels:</b> ${disabledCount}\n` +
-    `⚠️ <b>Admin Removed:</b> ${removedCount}\n` +
-    `🔨 <b>Total Auto Bans:</b> ${totalBans}\n` +
-    `♻️ <b>Total Unbans:</b> ${totalUnbans}`;
+    `📊 <b>সার্বিক পরিসংখ্যান</b>\n\n` +
+    `👥 <b>মোট ইউজার:</b> ${usersCount} জন\n` +
+    `📢 <b>মোট চ্যানেল:</b> ${channels.length} টি\n` +
+    `🟢 <b>সুরক্ষিত চ্যানেল:</b> ${protectedCount} টি\n` +
+    `⏸ <b>সুরক্ষা বন্ধ চ্যানেল:</b> ${disabledCount} টি\n` +
+    `⚠️ <b>বট অ্যাডমিন সরানো হয়েছে:</b> ${removedCount} টি\n` +
+    `🔨 <b>মোট অটো ব্যান:</b> ${totalBans} বার\n` +
+    `♻️ <b>মোট আনব্যান:</b> ${totalUnbans} বার`;
 
   const keyboard = {
-    inline_keyboard: [[{ text: '🔙 Back', callback_data: 'admin_back' }]]
+    inline_keyboard: [[{ text: '🔙 ব্যাক', callback_data: 'admin_back' }]]
   };
 
   await editMessage(chatId, messageId, text, { reply_markup: keyboard });
@@ -922,7 +882,7 @@ async function handleAdminUserSearch(chatId, queryId) {
   const userSnap = await get(ref(db, `users/${targetUserId}`));
 
   if (!userSnap.exists()) {
-    await sendMessage(chatId, `❌ User with ID <code>${targetUserId}</code> not found in database.`);
+    await sendMessage(chatId, `❌ <code>${targetUserId}</code> আইডির কোনো ইউজার পাওয়া যায়নি।`);
     return;
   }
 
@@ -930,18 +890,18 @@ async function handleAdminUserSearch(chatId, queryId) {
   const userChannels = u.channels ? Object.values(u.channels) : [];
 
   let text =
-    `👤 <b>User Information</b>\n\n` +
-    `<b>Name:</b> ${u.firstName || ''} ${u.lastName || ''}\n` +
-    `<b>Username:</b> ${u.username || 'None'}\n` +
-    `<b>User ID:</b> <code>${u.id}</code>\n` +
-    `<b>Connected Channels:</b> ${userChannels.length}\n\n`;
+    `👤 <b>ইউজার বিবরণ</b>\n\n` +
+    `<b>নাম:</b> ${u.firstName || ''} ${u.lastName || ''}\n` +
+    `<b>ইউজারনেম:</b> ${u.username || 'নেই'}\n` +
+    `<b>ইউজার আইডি:</b> <code>${u.id}</code>\n` +
+    `<b>যুক্ত চ্যানেল সংখ্যা:</b> ${userChannels.length}\n\n`;
 
   if (userChannels.length > 0) {
-    text += `<b>Channels List:</b>\n`;
+    text += `<b>চ্যানেলের তালিকা:</b>\n`;
     for (const ch of userChannels) {
       const adminIcon = ch.botStatus === 'administrator' ? '✅' : '❌';
-      const protStatus = ch.protectionEnabled ? 'ON' : 'OFF';
-      text += `📢 ${ch.username || ch.title}\n🤖 Bot Admin: ${adminIcon}\n🛡 Protection: ${protStatus}\n\n`;
+      const protStatus = ch.protectionEnabled ? 'অন' : 'অফ';
+      text += `📢 ${ch.username || ch.title}\n🤖 বট অ্যাডমিন: ${adminIcon}\n🛡 সুরক্ষা: ${protStatus}\n\n`;
     }
   }
 
@@ -950,11 +910,11 @@ async function handleAdminUserSearch(chatId, queryId) {
   });
 }
 
-// Broadcast Processing
+// ব্রডকাস্ট প্রসেসর
 async function executeBroadcast(adminChatId, broadcastData) {
   const usersSnap = await get(ref(db, 'users'));
   if (!usersSnap.exists()) {
-    await sendMessage(adminChatId, `❌ No registered users to broadcast to.`);
+    await sendMessage(adminChatId, `❌ ব্রডকাস্ট করার মতো কোনো ইউজার পাওয়া যায়নি।`);
     return;
   }
 
@@ -962,7 +922,7 @@ async function executeBroadcast(adminChatId, broadcastData) {
   const userIds = Object.keys(users);
   const total = userIds.length;
 
-  await sendMessage(adminChatId, `⏳ Starting broadcast to <b>${total}</b> users...`);
+  await sendMessage(adminChatId, `⏳ <b>${total}</b> জন ইউজারের কাছে ব্রডকাস্ট শুরু হচ্ছে...`);
 
   let success = 0;
   let failed = 0;
@@ -985,7 +945,6 @@ async function executeBroadcast(adminChatId, broadcastData) {
       failed++;
     }
 
-    // Respect rate limits (~25 requests/sec)
     await new Promise((resolve) => setTimeout(resolve, 40));
   }
 
@@ -999,10 +958,10 @@ async function executeBroadcast(adminChatId, broadcastData) {
   });
 
   const reportText =
-    `📣 <b>Broadcast Completed</b>\n\n` +
-    `✅ <b>Sent:</b> ${success}\n` +
-    `❌ <b>Failed:</b> ${failed}\n` +
-    `👥 <b>Total:</b> ${total}`;
+    `📣 <b>ব্রডকাস্ট সম্পন্ন হয়েছে!</b>\n\n` +
+    `✅ <b>সফলভাবে পাঠানো হয়েছে:</b> ${success}\n` +
+    `❌ <b>ব্যর্থ হয়েছে:</b> ${failed}\n` +
+    `👥 <b>সর্বমোট:</b> ${total}`;
 
   await sendMessage(adminChatId, reportText, {
     reply_markup: getMainMenuKeyboard(adminChatId)
@@ -1010,7 +969,7 @@ async function executeBroadcast(adminChatId, broadcastData) {
 }
 
 // ==========================================
-// CORE AUTO-BAN ENGINE (LEAVE DETECTION)
+// কোর অটো-ব্যান ইঞ্জিন (লিভ ডিটেকশন)
 // ==========================================
 async function handleChatMemberUpdated(updateData) {
   try {
@@ -1024,7 +983,7 @@ async function handleChatMemberUpdated(updateData) {
     const targetUser = new_chat_member.user;
     if (!targetUser) return;
 
-    // Safety: Never ban bot itself
+    // বট নিজে লিভ নিলে বা অপসারিত হলে
     if (targetUser.id === BOT_USER_ID) {
       if (new_chat_member.status === 'left' || new_chat_member.status === 'kicked') {
         await updateChannelField(channelId, channel.ownerId, 'botStatus', 'admin_removed');
@@ -1032,16 +991,16 @@ async function handleChatMemberUpdated(updateData) {
 
         await sendMessage(
           channel.ownerId,
-          `⚠️ <b>Protection Paused</b>\n\n` +
+          `⚠️ <b>সুরক্ষা স্থগিত করা হয়েছে!</b>\n\n` +
           `📢 <b>${channel.username || channel.title}</b>\n\n` +
-          `I am no longer an administrator of this channel.\n` +
-          `Please make me administrator again to continue protection.`
+          `আমাকে চ্যানেল থেকে অ্যাডমিন হিসেবে অপসারিত করা হয়েছে।\n` +
+          `সুরক্ষা চালু রাখতে অনুগ্রহ করে পুনরায় আমাকে অ্যাডমিন বানান।`
         );
       }
       return;
     }
 
-    // Verify protection state
+    // সুরক্ষা চালু আছে কিনা নিশ্চিত করা
     if (!channel.protectionEnabled || channel.botStatus !== 'administrator') {
       return;
     }
@@ -1049,13 +1008,13 @@ async function handleChatMemberUpdated(updateData) {
     const oldStatus = old_chat_member ? old_chat_member.status : 'unknown';
     const newStatus = new_chat_member.status;
 
-    // Safety: Never ban channel administrators or owners
+    // অ্যাডমিন বা ওনারদের কখনো ব্যান করবে না
     if (oldStatus === 'creator' || oldStatus === 'administrator' ||
         newStatus === 'creator' || newStatus === 'administrator') {
       return;
     }
 
-    // Voluntary leave detection: status transitions to 'left'
+    // ইউজার স্বেচ্ছায় লিভ নিয়েছে কিনা চেক
     const isVoluntaryLeave = (newStatus === 'left') &&
       (!from || from.id === targetUser.id || oldStatus === 'member');
 
@@ -1063,30 +1022,30 @@ async function handleChatMemberUpdated(updateData) {
       return;
     }
 
-    console.log(`[LEAVE DETECTED] User ${targetUser.id} left channel ${channelId}`);
+    console.log(`[LEAVE DETECTED] ইউজার ${targetUser.id} চ্যানেল ${channelId} থেকে বের হয়ে গেছে।`);
 
-    // Check target is not bot owner or channel owner
+    // চ্যানেল ওনার বা মেইন এডমিন হলে ব্যান করবে না
     if (Number(targetUser.id) === Number(channel.ownerId) || Number(targetUser.id) === MAIN_ADMIN_ID) {
       return;
     }
 
-    // Ensure bot has live ban permission
+    // বটের ব্যান করার পারমিশন আছে কিনা চেক
     const botPerms = await checkBotPermissions(channelId);
     if (!botPerms.canBan) {
-      console.warn(`[WARN] Bot lacks ban permissions in ${channelId}`);
+      console.warn(`[WARN] বটের ${channelId} চ্যানেলে ব্যান পারমিশন নেই`);
       return;
     }
 
-    // Execute ban
+    // ইউজারকে ব্যান করা
     const banResult = await banChatMember(channelId, targetUser.id);
     if (!banResult.ok) {
-      console.error(`[ERROR] banChatMember failed: ${banResult.description}`);
+      console.error(`[ERROR] banChatMember ব্যর্থ হয়েছে: ${banResult.description}`);
       return;
     }
 
-    console.log(`[BAN EXECUTED] User ${targetUser.id} banned from ${channelId}`);
+    console.log(`[BAN EXECUTED] ইউজার ${targetUser.id} সফলভাবে ব্যান করা হয়েছে।`);
 
-    // Store record in Firebase
+    // ফায়ারবেসে তথ্য সংরক্ষণ
     await saveBanRecord(channelId, targetUser);
     await logEvent('AUTO_BAN', { channelId, userId: targetUser.id });
 
@@ -1094,39 +1053,39 @@ async function handleChatMemberUpdated(updateData) {
     const userName = targetUser.first_name || 'Member';
     const userDisplay = targetUser.username ? `@${targetUser.username}` : userName;
 
-    // 1. Channel Notification
+    // ১. চ্যানেলে মেসেজ পাঠানো
     if (notifications.channel) {
       const chMsg =
-        `🚫 <b>AUTO BAN</b>\n\n` +
-        `👤 <b>User:</b> ${userName}\n` +
-        `🆔 <b>ID:</b> <code>${targetUser.id}</code>\n` +
-        `📢 <b>Channel:</b> ${chat.title || 'This Channel'}\n` +
-        `⚡ <b>Reason:</b> User left the channel.\n` +
-        `🔨 <b>Status:</b> BANNED`;
+        `🚫 <b>অটো ব্যান (AUTO BAN)</b>\n\n` +
+        `👤 <b>ইউজার:</b> ${userName}\n` +
+        `🆔 <b>আইডি:</b> <code>${targetUser.id}</code>\n` +
+        `📢 <b>চ্যানেল:</b> ${chat.title || 'এই চ্যানেল'}\n` +
+        `⚡ <b>কারণ:</b> চ্যানেল থেকে লিভ নিয়েছে।\n` +
+        `🔨 <b>স্ট্যাটাস:</b> ব্যান করা হয়েছে (BANNED)`;
 
       await sendMessage(channelId, chMsg);
     }
 
-    // 2. Private Notification to Channel Owner
+    // ২. চ্যানেলের মালিককে ব্যক্তিগত ইনবক্সে মেসেজ পাঠানো
     if (notifications.owner && channel.ownerId) {
-      const nowStr = new Date().toUTCString();
+      const nowStr = new Date().toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka' });
       const ownerMsg =
-        `🚫 <b>Auto Ban Triggered</b>\n\n` +
-        `📢 <b>Channel:</b> ${channel.username || channel.title}\n` +
-        `👤 <b>User:</b> ${userDisplay}\n` +
-        `🆔 <b>User ID:</b> <code>${targetUser.id}</code>\n` +
-        `⚡ <b>Reason:</b> Left the channel\n` +
-        `🔨 <b>Action:</b> Automatically Banned\n` +
-        `🕒 <b>Time:</b> ${nowStr}`;
+        `🚫 <b>অটো ব্যান কার্যকর হয়েছে!</b>\n\n` +
+        `📢 <b>চ্যানেল:</b> ${channel.username || channel.title}\n` +
+        `👤 <b>ইউজার:</b> ${userDisplay}\n` +
+        `🆔 <b>ইউজার আইডি:</b> <code>${targetUser.id}</code>\n` +
+        `⚡ <b>কারণ:</b> চ্যানেল থেকে লিভ নিয়েছে\n` +
+        `🔨 <b>পদক্ষেপ:</b> অটো ব্যান কার্যকর করা হয়েছে\n` +
+        `🕒 <b>সময়:</b> ${nowStr}`;
 
       await sendMessage(channel.ownerId, ownerMsg);
     }
   } catch (err) {
-    console.error(`[ERROR] handleChatMemberUpdated exception: ${err.message}`);
+    console.error(`[ERROR] handleChatMemberUpdated এ ত্রুটি: ${err.message}`);
   }
 }
 
-// Bot Self Status Monitoring
+// বটের নিজের স্ট্যাটাস পরিবর্তন চেক
 async function handleMyChatMemberUpdated(updateData) {
   try {
     const { chat, new_chat_member } = updateData;
@@ -1140,26 +1099,26 @@ async function handleMyChatMemberUpdated(updateData) {
 
     if (status === 'administrator') {
       await updateChannelField(channelId, channel.ownerId, 'botStatus', 'administrator');
-      console.log(`[STATUS] Bot admin restored in channel ${channelId}`);
+      console.log(`[STATUS] বটের অ্যাডমিন ক্ষমতা ফিরিয়ে দেওয়া হয়েছে ${channelId} চ্যানেলে`);
     } else {
       await updateChannelField(channelId, channel.ownerId, 'botStatus', 'admin_removed');
       await updateChannelField(channelId, channel.ownerId, 'protectionEnabled', false);
 
       await sendMessage(
         channel.ownerId,
-        `⚠️ <b>Protection Paused</b>\n\n` +
+        `⚠️ <b>সুরক্ষা স্থগিত করা হয়েছে!</b>\n\n` +
         `📢 <b>${channel.username || channel.title}</b>\n\n` +
-        `I am no longer an administrator of this channel.\n` +
-        `Please make me administrator again to continue protection.`
+        `আমাকে চ্যানেল থেকে অ্যাডমিন হিসেবে অপসারিত করা হয়েছে।\n` +
+        `সুরক্ষা চালু রাখতে অনুগ্রহ করে পুনরায় আমাকে অ্যাডমিন বানান।`
       );
     }
   } catch (err) {
-    console.error(`[ERROR] handleMyChatMemberUpdated exception: ${err.message}`);
+    console.error(`[ERROR] handleMyChatMemberUpdated এ ত্রুটি: ${err.message}`);
   }
 }
 
 // ==========================================
-// CALLBACK QUERY ROUTER
+// কলব্যাক কুয়েরি রাউটার
 // ==========================================
 async function handleCallbackQuery(callbackQuery) {
   const { id, from, message, data } = callbackQuery;
@@ -1171,14 +1130,14 @@ async function handleCallbackQuery(callbackQuery) {
 
     if (data === 'cancel_action') {
       userStates.delete(from.id);
-      await editMessage(chatId, messageId, `❌ Action cancelled.`);
-      await sendMessage(chatId, `Main Menu:`, {
+      await editMessage(chatId, messageId, `❌ বাতিল করা হয়েছে।`);
+      await sendMessage(chatId, `মূল মেনু:`, {
         reply_markup: getMainMenuKeyboard(from.id)
       });
       return;
     }
 
-    if (data === 'nav_my_channels' || data === 'settings_channels') {
+    if (data === 'nav_my_channels') {
       await handleMyChannels(chatId, from, messageId);
       return;
     }
@@ -1188,31 +1147,7 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    if (data === 'settings_main') {
-      const inlineKeyboard = {
-        inline_keyboard: [
-          [{ text: '👤 My Account', callback_data: 'settings_account' }],
-          [{ text: '📂 My Channels', callback_data: 'settings_channels' }],
-          [{ text: '📖 How It Works', callback_data: 'settings_how' }]
-        ]
-      };
-      await editMessage(chatId, messageId, `⚙️ <b>Settings</b>\n\nChoose an option:`, {
-        reply_markup: inlineKeyboard
-      });
-      return;
-    }
-
-    if (data === 'settings_account') {
-      await handleMyAccount(chatId, from, messageId);
-      return;
-    }
-
-    if (data === 'settings_how') {
-      await handleHowItWorks(chatId, from);
-      return;
-    }
-
-    // Admin Panel Actions
+    // এডমিন প্যানেল কলব্যাক
     if (data.startsWith('admin_')) {
       if (Number(from.id) !== MAIN_ADMIN_ID) return;
 
@@ -1221,7 +1156,7 @@ async function handleCallbackQuery(callbackQuery) {
         return;
       }
       if (data === 'admin_close') {
-        await editMessage(chatId, messageId, `👑 Admin Panel closed.`);
+        await editMessage(chatId, messageId, `👑 এডমিন প্যানেল বন্ধ করা হয়েছে।`);
         return;
       }
       if (data === 'admin_users') {
@@ -1240,9 +1175,9 @@ async function handleCallbackQuery(callbackQuery) {
         userStates.set(from.id, { step: 'broadcast_waiting' });
         await sendMessage(
           chatId,
-          `📣 <b>Broadcast</b>\n\n` +
-          `Send the message you want to broadcast to all bot users.\n` +
-          `You can send text or forward a message.`,
+          `📣 <b>ব্রডকাস্ট</b>\n\n` +
+          `সকল ইউজারের কাছে যে বার্তাটি পাঠাতে চান তা লিখে পাঠান।\n` +
+          `মেসেজ বা ফরোয়ার্ডকৃত পোস্ট পাঠাতে পারেন।`,
           { reply_markup: getCancelKeyboard() }
         );
         return;
@@ -1251,7 +1186,7 @@ async function handleCallbackQuery(callbackQuery) {
         userStates.set(from.id, { step: 'user_search_waiting' });
         await sendMessage(
           chatId,
-          `🔍 <b>User Search</b>\n\nSend the Telegram User ID to look up:\nExample: <code>8045367594</code>`,
+          `🔍 <b>ইউজার খুঁজুন</b>\n\nযে ইউজারের তথ্য দেখতে চান তার টেলিগ্রাম আইডি পাঠান:\nউদাহরণ: <code>8045367594</code>`,
           { reply_markup: getCancelKeyboard() }
         );
         return;
@@ -1259,34 +1194,34 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // Broadcast Confirm/Cancel
+    // ব্রডকাস্ট কনফার্ম / ক্যানসেল
     if (data === 'broadcast_confirm') {
       if (Number(from.id) !== MAIN_ADMIN_ID) return;
       const state = userStates.get(from.id);
       if (!state || !state.broadcastPayload) {
-        await editMessage(chatId, messageId, `❌ Broadcast expired or not found.`);
+        await editMessage(chatId, messageId, `❌ ব্রডকাস্টের তথ্য আর নেই।`);
         return;
       }
       userStates.delete(from.id);
-      await editMessage(chatId, messageId, `🚀 Broadcast confirmed. Broadcasting...`);
+      await editMessage(chatId, messageId, `🚀 ব্রডকাস্ট পাঠানো শুরু হয়েছে...`);
       await executeBroadcast(chatId, state.broadcastPayload);
       return;
     }
 
     if (data === 'broadcast_cancel') {
       userStates.delete(from.id);
-      await editMessage(chatId, messageId, `❌ Broadcast cancelled.`);
+      await editMessage(chatId, messageId, `❌ ব্রডকাস্ট বাতিল করা হয়েছে।`);
       return;
     }
 
-    // Recheck Channel Promotion
+    // চ্যানেল পুনরায় যাচাই
     if (data.startsWith('recheck_')) {
       const channelId = data.replace('recheck_', '');
       const botPerms = await checkBotPermissions(channelId);
       if (!botPerms.isBotAdmin || !botPerms.canBan) {
         await answerCallbackQuery(
           id,
-          '⚠️ Still not administrator with ban permission. Please grant permissions and check again.',
+          '⚠️ এখনও অ্যাডমিন বানাননি বা ব্যান পারমিশন দেননি। অনুগ্রহ করে ঠিক করুন।',
           true
         );
         return;
@@ -1306,29 +1241,29 @@ async function handleCallbackQuery(callbackQuery) {
       await editMessage(
         chatId,
         messageId,
-        `✅ <b>Channel Connected Successfully!</b>\n\nProtection is now 🟢 ACTIVE.`
+        `✅ <b>চ্যানেল সফলভাবে যুক্ত হয়েছে!</b>\n\nসুরক্ষা এখন 🟢 সক্রিয়।`
       );
-      await sendMessage(chatId, `Main Menu:`, {
+      await sendMessage(chatId, `মূল মেনু:`, {
         reply_markup: getMainMenuKeyboard(from.id)
       });
       return;
     }
 
-    // Manage Specific Channel
+    // নির্দিষ্ট চ্যানেল ম্যানেজমেন্ট
     if (data.startsWith('manage_')) {
       const channelId = data.replace('manage_', '');
       await handleManageChannel(chatId, messageId, from, channelId);
       return;
     }
 
-    // Toggle Protection
+    // সুরক্ষা চালু / বন্ধ টগল
     if (data.startsWith('prot_on_') || data.startsWith('prot_off_')) {
       const isEnable = data.startsWith('prot_on_');
       const channelId = data.replace(isEnable ? 'prot_on_' : 'prot_off_', '');
       const channel = await getChannel(channelId);
 
       if (!channel || (String(channel.ownerId) !== String(from.id) && Number(from.id) !== MAIN_ADMIN_ID)) {
-        await answerCallbackQuery(id, 'Unauthorized.', true);
+        await answerCallbackQuery(id, 'অননুমোদিত!', true);
         return;
       }
 
@@ -1337,7 +1272,7 @@ async function handleCallbackQuery(callbackQuery) {
         if (!botPerms.canBan) {
           await answerCallbackQuery(
             id,
-            '⚠️ Bot must be an Administrator with Ban permissions before enabling protection.',
+            '⚠️ সুরক্ষা চালু করতে বটকে অ্যাডমিন ও ব্যান পারমিশন থাকতে হবে।',
             true
           );
           return;
@@ -1345,12 +1280,12 @@ async function handleCallbackQuery(callbackQuery) {
       }
 
       await updateChannelField(channelId, channel.ownerId, 'protectionEnabled', isEnable);
-      await answerCallbackQuery(id, isEnable ? '🛡 Protection Enabled' : '⏸ Protection Disabled');
+      await answerCallbackQuery(id, isEnable ? '🛡 সুরক্ষা চালু করা হয়েছে' : '⏸ সুরক্ষা বন্ধ করা হয়েছে');
       await handleManageChannel(chatId, messageId, from, channelId);
       return;
     }
 
-    // Live Admin Check
+    // বট স্ট্যাটাস যাচাই
     if (data.startsWith('check_')) {
       const channelId = data.replace('check_', '');
       const channel = await getChannel(channelId);
@@ -1364,22 +1299,22 @@ async function handleCallbackQuery(callbackQuery) {
 
       if (!perms.isBotAdmin) {
         await updateChannelField(channelId, channel.ownerId, 'protectionEnabled', false);
-        await answerCallbackQuery(id, '⚠️ Bot is NOT an administrator in this channel.', true);
+        await answerCallbackQuery(id, '⚠️ বট এই চ্যানেলে অ্যাডমিন নেই!', true);
       } else {
-        await answerCallbackQuery(id, '✅ Bot is administrator with required permissions.', true);
+        await answerCallbackQuery(id, '✅ বট সম্পূর্ণ পারমিশনসহ অ্যাডমিন আছে।', true);
       }
       await handleManageChannel(chatId, messageId, from, channelId);
       return;
     }
 
-    // Notifications Menu
+    // নোটিফিকেশন সেটিংস
     if (data.startsWith('notif_')) {
       const channelId = data.replace('notif_', '');
       await handleNotificationSettings(chatId, messageId, from, channelId);
       return;
     }
 
-    // Toggle Notifications
+    // নোটিফিকেশন টগল
     if (data.startsWith('togglenotif_ch_')) {
       const channelId = data.replace('togglenotif_ch_', '');
       const channel = await getChannel(channelId);
@@ -1402,14 +1337,14 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // Banned Users List
+    // ব্যান তালিকা
     if (data.startsWith('banned_')) {
       const channelId = data.replace('banned_', '');
       await handleBannedUsersList(chatId, messageId, from, channelId);
       return;
     }
 
-    // Execute Manual Unban
+    // ম্যানুয়াল আনব্যান
     if (data.startsWith('unban_')) {
       const parts = data.split('_');
       const channelId = parts[1];
@@ -1417,36 +1352,36 @@ async function handleCallbackQuery(callbackQuery) {
       const channel = await getChannel(channelId);
 
       if (!channel || (String(channel.ownerId) !== String(from.id) && Number(from.id) !== MAIN_ADMIN_ID)) {
-        await answerCallbackQuery(id, 'Unauthorized.', true);
+        await answerCallbackQuery(id, 'অননুমোদিত!', true);
         return;
       }
 
       const unbanRes = await unbanChatMember(channelId, targetUid);
       if (unbanRes.ok) {
         await recordUnban(channelId, targetUid);
-        await answerCallbackQuery(id, '♻️ User unbanned! They can now rejoin.', true);
+        await answerCallbackQuery(id, '♻️ ইউজার আনব্যান হয়েছে! সে পুনরায় জয়েন করতে পারবে।', true);
       } else {
-        await answerCallbackQuery(id, `❌ Unban failed: ${unbanRes.description}`, true);
+        await answerCallbackQuery(id, `❌ আনব্যান ব্যর্থ: ${unbanRes.description}`, true);
       }
 
       await handleBannedUsersList(chatId, messageId, from, channelId);
       return;
     }
 
-    // Removal Confirmation Prompts
+    // চ্যানেল রিমুভ নিশ্চিতকরণ
     if (data.startsWith('delconf_')) {
       const channelId = data.replace('delconf_', '');
       const channel = await getChannel(channelId);
       if (!channel || (String(channel.ownerId) !== String(from.id) && Number(from.id) !== MAIN_ADMIN_ID)) return;
 
       const text =
-        `⚠️ <b>Remove Channel?</b>\n\n` +
-        `Are you sure you want to remove:\n<b>${channel.username || channel.title}</b>\nfrom your protected channels?`;
+        `⚠️ <b>চ্যানেল ডিলিট করবেন?</b>\n\n` +
+        `আপনি কি নিশ্চিত যে আপনি আপনার তালিকা থেকে:\n<b>${channel.username || channel.title}</b> চ্যানেলটি বাদ দিতে চান?`;
 
       const keyboard = {
         inline_keyboard: [
-          [{ text: '✅ Yes, Remove', callback_data: `delyes_${channelId}` }],
-          [{ text: '❌ Cancel', callback_data: `manage_${channelId}` }]
+          [{ text: '✅ হ্যাঁ, ডিলিট করুন', callback_data: `delyes_${channelId}` }],
+          [{ text: '❌ বাতিল', callback_data: `manage_${channelId}` }]
         ]
       };
 
@@ -1454,7 +1389,7 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // Confirm Removal
+    // চ্যানেল পুরোপুরি রিমুভ করা
     if (data.startsWith('delyes_')) {
       const channelId = data.replace('delyes_', '');
       const channel = await getChannel(channelId);
@@ -1465,20 +1400,20 @@ async function handleCallbackQuery(callbackQuery) {
       await editMessage(
         chatId,
         messageId,
-        `✅ <b>Channel Removed</b>\n\nThis channel is no longer protected by your bot.`
+        `✅ <b>চ্যানেল রিমুভ করা হয়েছে!</b>\n\nএই চ্যানেলটি আর বটের সুরক্ষায় থাকবে না।`
       );
-      await sendMessage(chatId, `Main Menu:`, {
+      await sendMessage(chatId, `মূল মেনু:`, {
         reply_markup: getMainMenuKeyboard(from.id)
       });
       return;
     }
   } catch (err) {
-    console.error(`[ERROR] handleCallbackQuery exception: ${err.message}`);
+    console.error(`[ERROR] handleCallbackQuery এ ত্রুটি: ${err.message}`);
   }
 }
 
 // ==========================================
-// MESSAGE ROUTER
+// সাধারণ মেসেজ হ্যান্ডলার
 // ==========================================
 async function handleMessage(message) {
   const chatId = message.chat.id;
@@ -1490,16 +1425,16 @@ async function handleMessage(message) {
 
   const state = userStates.get(from.id);
 
-  // Global Cancel
-  if (text === '❌ Cancel' || text === '/cancel') {
+  // বাতিল কমান্ড
+  if (text === '❌ বাতিল করুন' || text === '❌ Cancel' || text === '/cancel') {
     userStates.delete(from.id);
-    await sendMessage(chatId, `❌ Cancelled. Returned to Main Menu.`, {
+    await sendMessage(chatId, `❌ অপারেশন বাতিল করা হয়েছে।`, {
       reply_markup: getMainMenuKeyboard(from.id)
     });
     return;
   }
 
-  // Handle waiting state: Broadcast input
+  // ব্রডকাস্ট লেখার স্টেট
   if (state && state.step === 'broadcast_waiting') {
     if (Number(from.id) !== MAIN_ADMIN_ID) {
       userStates.delete(from.id);
@@ -1519,14 +1454,14 @@ async function handleMessage(message) {
     });
 
     const confirmText =
-      `⚠️ <b>Confirm Broadcast</b>\n\n` +
-      `You are about to send this message to:\n<b>${totalCount}</b> registered users.\n\n` +
-      `Do you want to proceed?`;
+      `⚠️ <b>ব্রডকাস্ট কনফার্মেশন</b>\n\n` +
+      `আপনি বার্তাটি মোট <b>${totalCount}</b> জন ইউজারের কাছে পাঠাতে যাচ্ছেন।\n\n` +
+      `আপনি কি নিশ্চিত?`;
 
     const keyboard = {
       inline_keyboard: [
-        [{ text: '✅ Confirm', callback_data: 'broadcast_confirm' }],
-        [{ text: '❌ Cancel', callback_data: 'broadcast_cancel' }]
+        [{ text: '✅ হ্যাঁ, পাঠিয়ে দিন', callback_data: 'broadcast_confirm' }],
+        [{ text: '❌ বাতিল করুন', callback_data: 'broadcast_cancel' }]
       ]
     };
 
@@ -1534,7 +1469,7 @@ async function handleMessage(message) {
     return;
   }
 
-  // Handle waiting state: User Search input
+  // ইউজার সার্চের স্টেট
   if (state && state.step === 'user_search_waiting') {
     if (Number(from.id) !== MAIN_ADMIN_ID) {
       userStates.delete(from.id);
@@ -1545,58 +1480,52 @@ async function handleMessage(message) {
     return;
   }
 
-  // Handle waiting state: Channel Input
+  // চ্যানেল আইডি/ইউজারনেম ইনপুটের স্টেট
   if (state && state.step === 'waiting_channel_input') {
     await handleChannelInput(chatId, from, text);
     return;
   }
 
-  // Command & Main Menu Routing
+  // মেনু বাটন হ্যান্ডলিং (বাংলা ও ইংরেজি উভয়ই সাপোর্ট করবে)
   if (text === '/start') {
     await handleStart(chatId, from);
     return;
   }
 
-  if (text === '📖 How It Works' || text === '/help') {
+  if (text === '📖 কিভাবে কাজ করে' || text === '📖 How It Works' || text === '/help') {
     await handleHowItWorks(chatId, from);
     return;
   }
 
-  if (text === '➕ Add Channel') {
+  if (text === '➕ চ্যানেল যোগ করুন' || text === '➕ Add Channel') {
     await handleAddChannelPrompt(chatId, from);
     return;
   }
 
-  if (text === '📂 My Channels') {
+  if (text === '📂 আমার চ্যানেল' || text === '📂 My Channels') {
     await handleMyChannels(chatId, from);
     return;
   }
 
-  if (text === '⚙️ Settings') {
-    await handleSettingsMenu(chatId, from);
-    return;
-  }
-
-  if (text === '👑 Admin Panel' || text === '/admin') {
+  if (text === '👑 এডমিন প্যানেল' || text === '👑 Admin Panel' || text === '/admin') {
     if (Number(from.id) === MAIN_ADMIN_ID) {
       await showAdminPanel(chatId);
     }
-    // Strict requirement: Non-admins receive zero response
     return;
   }
 
-  // Default fallback for private chat messages
+  // প্রাইভেট চ্যাটে অপশনাল কোনো টেক্সট আসলে
   if (message.chat.type === 'private') {
     await sendMessage(
       chatId,
-      `🤖 Please use the buttons below to manage your channels.`,
+      `🤖 পরিচালনা করতে অনুগ্রহ করে নিচের বাটনগুলো ব্যবহার করুন।`,
       { reply_markup: getMainMenuKeyboard(from.id) }
     );
   }
 }
 
 // ==========================================
-// CENTRAL TELEGRAM UPDATE DISPATCHER
+// টেলিগ্রাম আপডেট ডিসপ্যাচার
 // ==========================================
 async function processUpdate(update) {
   try {
@@ -1610,42 +1539,37 @@ async function processUpdate(update) {
       await handleMyChatMemberUpdated(update.my_chat_member);
     }
   } catch (err) {
-    console.error(`[ERROR] Unhandled update error: ${err.message}`);
+    console.error(`[ERROR] প্রসেসিং ত্রুটি: ${err.message}`);
   }
 }
 
 // ==========================================
-// RENDER SERVER & WEBHOOK / POLLING SETUP
+// এক্সপ্রেস সার্ভার ও ওয়েবহুক / পোলিং সেটআপ
 // ==========================================
 const app = express();
 app.use(express.json());
 
-// Render Health Check Endpoint
 app.get('/', (req, res) => {
-  res.status(200).send('𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍 is running.');
+  res.status(200).send('𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍 Bot চালু আছে।');
 });
 
-// Telegram Webhook Endpoint
 const WEBHOOK_PATH = `/api/webhook`;
 app.post(WEBHOOK_PATH, (req, res) => {
   res.sendStatus(200);
   processUpdate(req.body);
 });
 
-// Start Express Server
-const server = app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`[INFO] Server running on 0.0.0.0:${PORT}`);
 
-  // Fetch bot details
   const me = await callTelegram('getMe');
   if (me.ok) {
     BOT_USER_ID = me.result.id;
     console.log(`[INFO] Bot connected: @${me.result.username} (${BOT_USER_ID})`);
   } else {
-    console.error(`[ERROR] Unable to authenticate BOT_TOKEN with Telegram.`);
+    console.error(`[ERROR] Telegram BOT_TOKEN অকার্যকর!`);
   }
 
-  // Webhook Registration on Render
   const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.WEBHOOK_URL;
   const allowedUpdates = ['message', 'callback_query', 'chat_member', 'my_chat_member'];
 
@@ -1656,15 +1580,14 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       allowed_updates: allowedUpdates,
       drop_pending_updates: false
     });
-    console.log(`[INFO] Webhook setup (${fullWebhookUrl}): ${webhookRes.ok ? 'SUCCESS' : webhookRes.description}`);
+    console.log(`[INFO] Webhook সেটআপ (${fullWebhookUrl}): ${webhookRes.ok ? 'সফল' : webhookRes.description}`);
   } else {
-    console.log('[INFO] No external URL detected. Starting Long-Polling fallback...');
+    console.log('[INFO] লং-পোলিং ব্যাকআপ চালু হচ্ছে...');
     await callTelegram('deleteWebhook', { drop_pending_updates: false });
     startLongPolling(allowedUpdates);
   }
 });
 
-// Long polling fallback for development
 async function startLongPolling(allowedUpdates) {
   let offset = 0;
   while (true) {
