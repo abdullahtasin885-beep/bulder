@@ -293,7 +293,7 @@ async function logEvent(type, payload) {
       timestamp: Date.now()
     });
   } catch (err) {
-    // Non-blocking log
+    // Non-blocking
   }
 }
 
@@ -363,7 +363,7 @@ async function verifyChannelOwnerOrAdmin(channelId, userId) {
 }
 
 // ==========================================
-// কমান্ড ও মেনু হ্যান্ডলারসমূহ (বাংলা)
+// কমান্ড ও মেনু হ্যান্ডলারসমূহ
 // ==========================================
 async function handleStart(chatId, from) {
   userStates.delete(from.id);
@@ -409,30 +409,59 @@ async function handleAddChannelPrompt(chatId, from) {
 
   const text =
     `➕ <b>নতুন চ্যানেল যোগ করুন</b>\n\n` +
-    `প্রথমে এই বটকে (<b>@AuraLeaveBanBot</b>) আপনার চ্যানেলে <b>ADMINISTRATOR</b> হিসেবে যোগ করুন।\n\n` +
+    `⚠️ <b>গুরুত্বপূর্ণ:</b> চ্যানেল যোগ করার আগে অবশ্যই এই বটকে (<b>@AuraLeaveBanBot</b>) আপনার চ্যানেলে <b>ADMINISTRATOR</b> হিসেবে যোগ করতে হবে।\n\n` +
     `বটের যেসব পারমিশন প্রয়োজন:\n` +
     `✅ <b>Ban Users</b>\n` +
     `✅ <b>Manage Members</b>\n\n` +
-    `বটকে অ্যাডমিন করার পর, আপনার চ্যানেলের ইউজারনেম (@username) বা চ্যানেল আইডি পাঠান।\n\n` +
-    `উদাহরণ:\n` +
-    `<code>@MyChannel</code>\n` +
-    `অথবা\n` +
-    `<code>-1001234567890</code>`;
+    `বটকে অ্যাডমিন করার পর নিচের যেকোনো একটি পাঠান:\n` +
+    `১. চ্যানেলের ইউজারনেম (যেমন: <code>@MyChannel</code>)\n` +
+    `২. চ্যানেলের লিংক (যেমন: <code>https://t.me/MyChannel</code>)\n` +
+    `৩. চ্যানেল আইডি (যেমন: <code>-1003725269802</code>)\n` +
+    `৪. অথবা আপনার চ্যানেল থেকে যেকোনো একটি পোস্ট এখানে <b>Forward</b> করে দিন।`;
 
   await sendMessage(chatId, text, { reply_markup: getCancelKeyboard() });
 }
 
+// চ্যানেল ইনপুট প্রসেসিং
 async function handleChannelInput(chatId, from, rawInput) {
-  const input = rawInput.trim();
+  let input = (rawInput || '').trim();
+
+  // ১. প্রাইভেট ইনভাইট লিংক ডিটেকশন (+ বা joinchat)
+  if (input.includes('t.me/+') || input.includes('t.me/joinchat/')) {
+    const text =
+      `⚠️ <b>আগে বটকে চ্যানেলে অ্যাডমিন করুন!</b>\n\n` +
+      `প্রাইভেট চ্যানেলের ইনভাইট লিংক দিয়ে বট সরাসরি তথ্য পড়তে পারে না।\n\n` +
+      `📌 <b>করণীয়:</b>\n` +
+      `১. প্রথমে <b>@AuraLeaveBanBot</b> কে আপনার চ্যানেলে <b>ADMINISTRATOR</b> হিসেবে যোগ করুন।\n` +
+      `২. এরপর চ্যানেলের <b>চ্যানেল আইডি</b> (যেমন: <code>-100xxxxxxxxxx</code>) পাঠান অথবা চ্যানেল থেকে একটি পোস্ট এখানে <b>Forward</b> করুন।`;
+    await sendMessage(chatId, text, { reply_markup: getCancelKeyboard() });
+    return;
+  }
+
+  // ২. সাধারণ টেলিগ্রাম লিংক ফিল্টার (e.g. https://t.me/ChannelName)
+  if (input.includes('t.me/')) {
+    input = input.split('t.me/')[1].split('/')[0].split('?')[0];
+  } else if (input.includes('telegram.me/')) {
+    input = input.split('telegram.me/')[1].split('/')[0].split('?')[0];
+  }
+
   const formattedTarget = (!input.startsWith('@') && !input.startsWith('-') && !/^\d+$/.test(input))
     ? `@${input}`
     : input;
 
   const chat = await getChat(formattedTarget);
+
+  // ৩. যদি getChat ব্যর্থ হয় (টেলিগ্রামের নিয়মে বট অ্যাডমিন না থাকলে প্রাইভেট চ্যানেল বা আইডি পাওয়া যায় না)
   if (!chat) {
     const text =
-      `❌ <b>চ্যানেলটি খুঁজে পাওয়া যায়নি!</b>\n\n` +
-      `অনুগ্রহ করে নিশ্চিত করুন ইউজারনেম বা আইডি সঠিক আছে এবং আবার চেষ্টা করুন।`;
+      `⚠️ <b>আগে বটকে চ্যানেলে অ্যাডমিন করুন!</b>\n\n` +
+      `আমি আপনার চ্যানেলটি খুঁজে পাচ্ছি না।\n\n` +
+      `📌 <b>কারণ:</b> টেলিগ্রামের সুরক্ষা নিয়মানুযায়ী, কোনো চ্যানেল (বিশেষ করে প্রাইভেট চ্যানেল বা আইডি)-তে বটকে আগে থেকে <b>ADMINISTRATOR</b> না বানালে বট ওই চ্যানেলে ঢুকতে পারে না।\n\n` +
+      `✅ <b>সহজ সমাধান:</b>\n` +
+      `১. আপনার চ্যানেলে যান ➔ <b>Channel Settings</b> ➔ <b>Administrators</b>\n` +
+      `২. <b>Add Administrator</b> এ ক্লিক করে <b>@AuraLeaveBanBot</b> কে অ্যাডমিন বানান।\n` +
+      `৩. অবশ্যই <b>Ban Users</b> পারমিশনটি অন রাখুন।\n\n` +
+      `অ্যাডমিন বানানো শেষ হলে পুনরায় আপনার চ্যানেলের আইডি (<code>${input}</code>) বা ইউজারনেমটি এখানে পাঠান:`;
     await sendMessage(chatId, text, { reply_markup: getCancelKeyboard() });
     return;
   }
@@ -447,7 +476,7 @@ async function handleChannelInput(chatId, from, rawInput) {
 
   const channelId = String(chat.id);
 
-  // ডুপ্লিকেট চ্যানেল চেক
+  // ৪. ডুপ্লিকেট চ্যানেল চেক
   const existingChannel = await getChannel(channelId);
   if (existingChannel) {
     userStates.delete(from.id);
@@ -467,7 +496,7 @@ async function handleChannelInput(chatId, from, rawInput) {
     return;
   }
 
-  // ইউজার চ্যানেলের অ্যাডমিন কিনা চেক
+  // ৫. যে চ্যানেল অ্যাড করছে সে ক্রিয়েটর বা অ্যাডমিন কিনা চেক
   const isSenderPrivileged = await verifyChannelOwnerOrAdmin(channelId, from.id);
   if (!isSenderPrivileged && Number(from.id) !== MAIN_ADMIN_ID) {
     userStates.delete(from.id);
@@ -479,7 +508,7 @@ async function handleChannelInput(chatId, from, rawInput) {
     return;
   }
 
-  // বট অ্যাডমিন এবং ব্যান পারমিশন চেক
+  // ৬. বট নিজে অ্যাডমিন ও ব্যান পারমিশন প্রাপ্ত কিনা চেক
   const botPerms = await checkBotPermissions(channelId);
   if (!botPerms.isBotAdmin || !botPerms.canBan) {
     userStates.set(from.id, {
@@ -490,12 +519,12 @@ async function handleChannelInput(chatId, from, rawInput) {
     });
 
     const text =
-      `⚠️ <b>বট অ্যাডমিন পারমিশন প্রয়োজন</b>\n\n` +
-      `চ্যানেল পাওয়া গেছে, কিন্তু আমি সেখানে অ্যাডমিনিস্ট্রেটর নই।\n\n` +
+      `⚠️ <b>আগে বটকে চ্যানেলে অ্যাডমিন করুন!</b>\n\n` +
+      `আমি আপনার চ্যানেল (<b>${chat.title}</b>) খুঁজে পেয়েছি, কিন্তু বট সেখানে অ্যাডমিন নয় অথবা ব্যান করার পারমিশন নেই।\n\n` +
       `অনুগ্রহ করে আমাকে অ্যাডমিন বানিয়ে নিচের পারমিশনগুলো দিন:\n` +
       `✅ <b>Ban Users</b>\n` +
       `✅ <b>Manage Members</b>\n\n` +
-      `এরপর চাপুন: <b>🔄 পুনরায় যাচাই করুন</b>`;
+      `পারমিশন দেওয়া শেষ হলে নিচের <b>🔄 পুনরায় যাচাই করুন</b> বাটনে চাপুন: 👇`;
 
     const inlineKeyboard = {
       inline_keyboard: [
@@ -508,7 +537,7 @@ async function handleChannelInput(chatId, from, rawInput) {
     return;
   }
 
-  // চ্যানেল সেভ করা
+  // ৭. সফল রেজিস্ট্রেশন
   await registerChannel({
     channelId,
     ownerId: from.id,
@@ -532,7 +561,7 @@ async function handleChannelInput(chatId, from, rawInput) {
   const inlineKeyboard = {
     inline_keyboard: [
       [{ text: '📂 আমার চ্যানেলসমূহ', callback_data: 'nav_my_channels' }],
-      [{ text: '⚙️ চ্যানেল সেটিংস', callback_data: `manage_${channelId}` }]
+      [{ text: '⚙️ চ্যানেল পরিচালনা', callback_data: `manage_${channelId}` }]
     ]
   };
 
@@ -741,7 +770,7 @@ async function handleBannedUsersList(chatId, messageId, from, channelId) {
 }
 
 // ==========================================
-// এডমিন প্যানেল (MAIN_ADMIN_ID: 8045367594)
+// এডমিন প্যানেল
 // ==========================================
 async function showAdminPanel(chatId, messageId = null) {
   const text =
@@ -983,7 +1012,6 @@ async function handleChatMemberUpdated(updateData) {
     const targetUser = new_chat_member.user;
     if (!targetUser) return;
 
-    // বট নিজে লিভ নিলে বা অপসারিত হলে
     if (targetUser.id === BOT_USER_ID) {
       if (new_chat_member.status === 'left' || new_chat_member.status === 'kicked') {
         await updateChannelField(channelId, channel.ownerId, 'botStatus', 'admin_removed');
@@ -1000,7 +1028,6 @@ async function handleChatMemberUpdated(updateData) {
       return;
     }
 
-    // সুরক্ষা চালু আছে কিনা নিশ্চিত করা
     if (!channel.protectionEnabled || channel.botStatus !== 'administrator') {
       return;
     }
@@ -1008,13 +1035,11 @@ async function handleChatMemberUpdated(updateData) {
     const oldStatus = old_chat_member ? old_chat_member.status : 'unknown';
     const newStatus = new_chat_member.status;
 
-    // অ্যাডমিন বা ওনারদের কখনো ব্যান করবে না
     if (oldStatus === 'creator' || oldStatus === 'administrator' ||
         newStatus === 'creator' || newStatus === 'administrator') {
       return;
     }
 
-    // ইউজার স্বেচ্ছায় লিভ নিয়েছে কিনা চেক
     const isVoluntaryLeave = (newStatus === 'left') &&
       (!from || from.id === targetUser.id || oldStatus === 'member');
 
@@ -1024,19 +1049,16 @@ async function handleChatMemberUpdated(updateData) {
 
     console.log(`[LEAVE DETECTED] ইউজার ${targetUser.id} চ্যানেল ${channelId} থেকে বের হয়ে গেছে।`);
 
-    // চ্যানেল ওনার বা মেইন এডমিন হলে ব্যান করবে না
     if (Number(targetUser.id) === Number(channel.ownerId) || Number(targetUser.id) === MAIN_ADMIN_ID) {
       return;
     }
 
-    // বটের ব্যান করার পারমিশন আছে কিনা চেক
     const botPerms = await checkBotPermissions(channelId);
     if (!botPerms.canBan) {
       console.warn(`[WARN] বটের ${channelId} চ্যানেলে ব্যান পারমিশন নেই`);
       return;
     }
 
-    // ইউজারকে ব্যান করা
     const banResult = await banChatMember(channelId, targetUser.id);
     if (!banResult.ok) {
       console.error(`[ERROR] banChatMember ব্যর্থ হয়েছে: ${banResult.description}`);
@@ -1045,7 +1067,6 @@ async function handleChatMemberUpdated(updateData) {
 
     console.log(`[BAN EXECUTED] ইউজার ${targetUser.id} সফলভাবে ব্যান করা হয়েছে।`);
 
-    // ফায়ারবেসে তথ্য সংরক্ষণ
     await saveBanRecord(channelId, targetUser);
     await logEvent('AUTO_BAN', { channelId, userId: targetUser.id });
 
@@ -1053,7 +1074,6 @@ async function handleChatMemberUpdated(updateData) {
     const userName = targetUser.first_name || 'Member';
     const userDisplay = targetUser.username ? `@${targetUser.username}` : userName;
 
-    // ১. চ্যানেলে মেসেজ পাঠানো
     if (notifications.channel) {
       const chMsg =
         `🚫 <b>অটো ব্যান (AUTO BAN)</b>\n\n` +
@@ -1066,7 +1086,6 @@ async function handleChatMemberUpdated(updateData) {
       await sendMessage(channelId, chMsg);
     }
 
-    // ২. চ্যানেলের মালিককে ব্যক্তিগত ইনবক্সে মেসেজ পাঠানো
     if (notifications.owner && channel.ownerId) {
       const nowStr = new Date().toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka' });
       const ownerMsg =
@@ -1085,7 +1104,6 @@ async function handleChatMemberUpdated(updateData) {
   }
 }
 
-// বটের নিজের স্ট্যাটাস পরিবর্তন চেক
 async function handleMyChatMemberUpdated(updateData) {
   try {
     const { chat, new_chat_member } = updateData;
@@ -1147,7 +1165,6 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // এডমিন প্যানেল কলব্যাক
     if (data.startsWith('admin_')) {
       if (Number(from.id) !== MAIN_ADMIN_ID) return;
 
@@ -1194,7 +1211,6 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // ব্রডকাস্ট কনফার্ম / ক্যানসেল
     if (data === 'broadcast_confirm') {
       if (Number(from.id) !== MAIN_ADMIN_ID) return;
       const state = userStates.get(from.id);
@@ -1214,7 +1230,6 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // চ্যানেল পুনরায় যাচাই
     if (data.startsWith('recheck_')) {
       const channelId = data.replace('recheck_', '');
       const botPerms = await checkBotPermissions(channelId);
@@ -1249,14 +1264,12 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // নির্দিষ্ট চ্যানেল ম্যানেজমেন্ট
     if (data.startsWith('manage_')) {
       const channelId = data.replace('manage_', '');
       await handleManageChannel(chatId, messageId, from, channelId);
       return;
     }
 
-    // সুরক্ষা চালু / বন্ধ টগল
     if (data.startsWith('prot_on_') || data.startsWith('prot_off_')) {
       const isEnable = data.startsWith('prot_on_');
       const channelId = data.replace(isEnable ? 'prot_on_' : 'prot_off_', '');
@@ -1285,7 +1298,6 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // বট স্ট্যাটাস যাচাই
     if (data.startsWith('check_')) {
       const channelId = data.replace('check_', '');
       const channel = await getChannel(channelId);
@@ -1307,14 +1319,12 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // নোটিফিকেশন সেটিংস
     if (data.startsWith('notif_')) {
       const channelId = data.replace('notif_', '');
       await handleNotificationSettings(chatId, messageId, from, channelId);
       return;
     }
 
-    // নোটিফিকেশন টগল
     if (data.startsWith('togglenotif_ch_')) {
       const channelId = data.replace('togglenotif_ch_', '');
       const channel = await getChannel(channelId);
@@ -1337,14 +1347,12 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // ব্যান তালিকা
     if (data.startsWith('banned_')) {
       const channelId = data.replace('banned_', '');
       await handleBannedUsersList(chatId, messageId, from, channelId);
       return;
     }
 
-    // ম্যানুয়াল আনব্যান
     if (data.startsWith('unban_')) {
       const parts = data.split('_');
       const channelId = parts[1];
@@ -1368,7 +1376,6 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // চ্যানেল রিমুভ নিশ্চিতকরণ
     if (data.startsWith('delconf_')) {
       const channelId = data.replace('delconf_', '');
       const channel = await getChannel(channelId);
@@ -1389,7 +1396,6 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    // চ্যানেল পুরোপুরি রিমুভ করা
     if (data.startsWith('delyes_')) {
       const channelId = data.replace('delyes_', '');
       const channel = await getChannel(channelId);
@@ -1434,7 +1440,7 @@ async function handleMessage(message) {
     return;
   }
 
-  // ব্রডকাস্ট লেখার স্টেট
+  // ব্রডকাস্ট স্টেট
   if (state && state.step === 'broadcast_waiting') {
     if (Number(from.id) !== MAIN_ADMIN_ID) {
       userStates.delete(from.id);
@@ -1469,7 +1475,7 @@ async function handleMessage(message) {
     return;
   }
 
-  // ইউজার সার্চের স্টেট
+  // ইউজার সার্চ স্টেট
   if (state && state.step === 'user_search_waiting') {
     if (Number(from.id) !== MAIN_ADMIN_ID) {
       userStates.delete(from.id);
@@ -1480,13 +1486,17 @@ async function handleMessage(message) {
     return;
   }
 
-  // চ্যানেল আইডি/ইউজারনেম ইনপুটের স্টেট
+  // চ্যানেল ইনপুট স্টেট (টেক্সট অথবা ফরোয়ার্ডকৃত মেসেজ গ্রহণ করবে)
   if (state && state.step === 'waiting_channel_input') {
+    if (message.forward_from_chat && message.forward_from_chat.type === 'channel') {
+      await handleChannelInput(chatId, from, String(message.forward_from_chat.id));
+      return;
+    }
     await handleChannelInput(chatId, from, text);
     return;
   }
 
-  // মেনু বাটন হ্যান্ডলিং (বাংলা ও ইংরেজি উভয়ই সাপোর্ট করবে)
+  // মেনু বাটন হ্যান্ডলিং
   if (text === '/start') {
     await handleStart(chatId, from);
     return;
@@ -1514,7 +1524,6 @@ async function handleMessage(message) {
     return;
   }
 
-  // প্রাইভেট চ্যাটে অপশনাল কোনো টেক্সট আসলে
   if (message.chat.type === 'private') {
     await sendMessage(
       chatId,
