@@ -1,12 +1,19 @@
 {
-  "name": "telegram-multi-bot-hub",
+  "name": "aura-leave-ban-bot",
   "version": "1.0.0",
-  "type": "module",
+  "description": "𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍 - Production Telegram Channel Leave Auto Ban Bot",
   "main": "api/index.js",
   "scripts": {
     "start": "node api/index.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
-  }
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "firebase": "^10.12.5",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "private": true
 }
