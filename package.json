@@ -1,7 +1,7 @@
 {
   "name": "aura-leave-ban-bot",
   "version": "1.0.0",
-  "description": "𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍 - Production Telegram Channel Leave Auto Ban Bot",
+  "description": "𝐀𝐔𝐑𝐀 𝐋𝐄𝐀𝐕𝐄 𝐁𝐀𝐍 - Telegram Channel Leave Auto Ban Bot",
   "main": "api/index.js",
   "scripts": {
     "start": "node api/index.js"
